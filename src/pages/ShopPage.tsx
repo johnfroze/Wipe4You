@@ -46,7 +46,7 @@ export function ShopPage({
   const [loading, setLoading] =
     useState(true);
 
-  // INSTANT DKP UI
+  // INSTANT DKP UPDATE
   const [localDkp, setLocalDkp] =
     useState(
       currentUser?.member.dkp || 0
@@ -58,7 +58,7 @@ export function ShopPage({
     );
   }, [currentUser]);
 
-  // Search
+  // SEARCH
   const [search, setSearch] =
     useState('');
 
@@ -70,7 +70,7 @@ export function ShopPage({
       | 'stock'
     >('newest');
 
-  // Add/Edit Modal
+  // MODAL
   const [
     showItemModal,
     setShowItemModal,
@@ -88,7 +88,7 @@ export function ShopPage({
       image: null as File | null,
     });
 
-  // Toast
+  // TOAST
   const [toast, setToast] =
     useState<{
       message: string;
@@ -152,25 +152,21 @@ export function ShopPage({
   }, [loadItems]);
 
   // FILTER ITEMS
-  const availableItems =
-    items.filter(
-      (i) => i.current_stock > 0
-    );
-
   const filteredItems =
-    availableItems
+    items
       .filter(
         (i) =>
-          i.name
+          i.current_stock > 0 &&
+          (i.name
             .toLowerCase()
             .includes(
               search.toLowerCase()
             ) ||
-          (i.description || '')
-            .toLowerCase()
-            .includes(
-              search.toLowerCase()
-            )
+            (i.description || '')
+              .toLowerCase()
+              .includes(
+                search.toLowerCase()
+              ))
       )
       .sort((a, b) => {
         switch (sortBy) {
@@ -208,7 +204,6 @@ export function ShopPage({
       return;
     }
 
-    // CONFIRM
     const confirmed =
       window.confirm(
         `Buy "${item.name}" for ${item.price} DKP?`
@@ -217,7 +212,7 @@ export function ShopPage({
     if (!confirmed) return;
 
     try {
-      // GET FRESH MEMBER DATA
+      // GET LATEST MEMBER
       const {
         data: freshMember,
         error: memberError,
@@ -234,7 +229,7 @@ export function ShopPage({
         throw memberError;
       }
 
-      // DKP CHECK
+      // CHECK DKP
       if (
         freshMember.dkp <
         item.price
@@ -247,7 +242,7 @@ export function ShopPage({
         return;
       }
 
-      // STOCK CHECK
+      // CHECK STOCK
       if (
         item.current_stock <= 0
       ) {
@@ -299,7 +294,7 @@ export function ShopPage({
         throw stockError;
       }
 
-      // CREATE TRANSACTION
+      // TRANSACTION
       const {
         error: transactionError,
       } = await supabase
@@ -318,15 +313,14 @@ export function ShopPage({
         throw transactionError;
       }
 
-      // REFRESH UI
+      // REFRESH
       await Promise.all([
         onDkpChange(),
         loadItems(),
       ]);
 
-      // SUCCESS
       showToast(
-        `Purchased ${item.name} for ${item.price} DKP`,
+        `Purchased ${item.name}`,
         'success'
       );
     } catch (err) {
@@ -339,7 +333,7 @@ export function ShopPage({
     }
   };
 
-  // OPEN ITEM MODAL
+  // OPEN MODAL
   const openItemModal = (
     item?: ShopItem
   ) => {
@@ -388,9 +382,7 @@ export function ShopPage({
       if (
         !name ||
         isNaN(price) ||
-        price <= 0 ||
-        isNaN(stock) ||
-        stock <= 0
+        isNaN(stock)
       ) {
         showToast(
           'Invalid values',
@@ -414,31 +406,19 @@ export function ShopPage({
 
         // UPDATE
         if (editingItem) {
-          const stockDiff =
-            stock -
-            editingItem.current_stock;
-
-          const newTotalStock =
-            editingItem.total_stock +
-            Math.max(
-              0,
-              stockDiff
-            );
-
           await updateShopItem(
             editingItem.id,
             {
               name,
               description:
-                itemForm.description ||
-                '',
+                itemForm.description,
               image_url:
-                imageUrl || '',
+                imageUrl,
               price,
               current_stock:
                 stock,
               total_stock:
-                newTotalStock,
+                stock,
             }
           );
 
@@ -457,10 +437,9 @@ export function ShopPage({
             .insert({
               name,
               description:
-                itemForm.description ||
-                '',
+                itemForm.description,
               image_url:
-                imageUrl || '',
+                imageUrl,
               price,
               total_stock:
                 stock,
@@ -474,12 +453,11 @@ export function ShopPage({
             });
 
           if (error) {
-            console.error(error);
             throw error;
           }
 
           showToast(
-            'Item added to shop',
+            'Item added',
             'success'
           );
         }
@@ -491,7 +469,7 @@ export function ShopPage({
         console.error(err);
 
         showToast(
-          'Failed to save item',
+          'Save failed',
           'error'
         );
       }
@@ -500,12 +478,12 @@ export function ShopPage({
   // DELETE ITEM
   const handleDeleteItem =
     async (id: number) => {
-      if (
-        !confirm(
+      const confirmed =
+        window.confirm(
           'Delete this item?'
-        )
-      )
-        return;
+        );
+
+      if (!confirmed) return;
 
       try {
         await deleteShopItem(id);
@@ -525,33 +503,6 @@ export function ShopPage({
         );
       }
     };
-
-  // STOCK LABEL
-  const stockLabel = (
-    stock: number
-  ) => {
-    if (stock === 0) {
-      return (
-        <span className="text-red-400 text-xs">
-          Out of Stock
-        </span>
-      );
-    }
-
-    if (stock <= 3) {
-      return (
-        <span className="text-yellow-400 text-xs">
-          {stock} left
-        </span>
-      );
-    }
-
-    return (
-      <span className="text-green-400 text-xs">
-        {stock} in stock
-      </span>
-    );
-  };
 
   // LOADING
   if (loading) {
@@ -613,7 +564,7 @@ export function ShopPage({
       </div>
 
       {/* SEARCH */}
-      <div className="flex flex-col sm:flex-row gap-3">
+      <div className="flex gap-3">
         <div className="relative flex-1">
           <Search
             className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500"
@@ -666,6 +617,275 @@ export function ShopPage({
           </select>
         </div>
       </div>
+
+      {/* ITEMS */}
+      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+        {filteredItems.map(
+          (item) => (
+            <div
+              key={item.id}
+              className="card overflow-hidden"
+            >
+              <div className="h-48 bg-black flex items-center justify-center overflow-hidden">
+                {item.image_url ? (
+                  <img
+                    src={
+                      item.image_url
+                    }
+                    alt={item.name}
+                    className="w-full h-full object-contain"
+                  />
+                ) : (
+                  <Package
+                    className="text-gray-700"
+                    size={48}
+                  />
+                )}
+              </div>
+
+              <div className="p-4">
+                <h3 className="font-bold text-lg">
+                  {item.name}
+                </h3>
+
+                <p className="text-gray-500 text-sm mt-1">
+                  {
+                    item.description
+                  }
+                </p>
+
+                <div className="flex justify-between mt-4">
+                  <span className="text-cyan-400 font-bold text-xl">
+                    {item.price} DKP
+                  </span>
+
+                  <span className="text-green-400 text-sm">
+                    {
+                      item.current_stock
+                    }{' '}
+                    in stock
+                  </span>
+                </div>
+
+                <div className="flex gap-2 mt-4">
+                  <button
+                    onClick={() =>
+                      buyItem(item)
+                    }
+                    className="flex-1 btn-primary py-2"
+                  >
+                    Buy
+                  </button>
+
+                  {isAdmin && (
+                    <>
+                      <button
+                        onClick={() =>
+                          openItemModal(
+                            item
+                          )
+                        }
+                        className="bg-[#222] hover:bg-[#333] p-2 rounded-xl"
+                      >
+                        <Edit3
+                          size={16}
+                        />
+                      </button>
+
+                      <button
+                        onClick={() =>
+                          handleDeleteItem(
+                            item.id
+                          )
+                        }
+                        className="bg-red-500/20 hover:bg-red-500/30 text-red-400 p-2 rounded-xl"
+                      >
+                        <Trash2
+                          size={16}
+                        />
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          )
+        )}
+      </div>
+
+      {/* EMPTY */}
+      {filteredItems.length ===
+        0 && (
+        <div className="card p-12 text-center">
+          <Package
+            className="mx-auto text-gray-600 mb-3"
+            size={48}
+          />
+
+          <p className="text-gray-500">
+            No items in shop yet
+          </p>
+        </div>
+      )}
+
+      {/* MODAL */}
+      {showItemModal &&
+        isAdmin && (
+          <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+            <div className="bg-[#111] border border-[#222] rounded-3xl p-6 w-full max-w-lg">
+              <div className="flex justify-between items-center mb-5">
+                <h2 className="text-xl font-bold">
+                  {editingItem
+                    ? 'Edit Item'
+                    : 'Add Item'}
+                </h2>
+
+                <button
+                  onClick={() =>
+                    setShowItemModal(
+                      false
+                    )
+                  }
+                  className="text-gray-400 hover:text-white"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <input
+                  value={
+                    itemForm.name
+                  }
+                  onChange={(
+                    e
+                  ) =>
+                    setItemForm(
+                      (
+                        prev
+                      ) => ({
+                        ...prev,
+                        name: e
+                          .target
+                          .value,
+                      })
+                    )
+                  }
+                  placeholder="Item Name"
+                  className="w-full p-3 rounded-xl bg-black border border-[#333]"
+                />
+
+                <textarea
+                  value={
+                    itemForm.description
+                  }
+                  onChange={(
+                    e
+                  ) =>
+                    setItemForm(
+                      (
+                        prev
+                      ) => ({
+                        ...prev,
+                        description:
+                          e
+                            .target
+                            .value,
+                      })
+                    )
+                  }
+                  placeholder="Description"
+                  className="w-full p-3 rounded-xl bg-black border border-[#333]"
+                />
+
+                <div className="grid grid-cols-2 gap-3">
+                  <input
+                    type="number"
+                    value={
+                      itemForm.price
+                    }
+                    onChange={(
+                      e
+                    ) =>
+                      setItemForm(
+                        (
+                          prev
+                        ) => ({
+                          ...prev,
+                          price:
+                            e
+                              .target
+                              .value,
+                        })
+                      )
+                    }
+                    placeholder="Price"
+                    className="w-full p-3 rounded-xl bg-black border border-[#333]"
+                  />
+
+                  <input
+                    type="number"
+                    value={
+                      itemForm.stock
+                    }
+                    onChange={(
+                      e
+                    ) =>
+                      setItemForm(
+                        (
+                          prev
+                        ) => ({
+                          ...prev,
+                          stock:
+                            e
+                              .target
+                              .value,
+                        })
+                      )
+                    }
+                    placeholder="Stock"
+                    className="w-full p-3 rounded-xl bg-black border border-[#333]"
+                  />
+                </div>
+
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(
+                    e
+                  ) =>
+                    setItemForm(
+                      (
+                        prev
+                      ) => ({
+                        ...prev,
+                        image:
+                          e
+                            .target
+                            .files?.[0] ||
+                          null,
+                      })
+                    )
+                  }
+                  className="w-full p-3 rounded-xl bg-black border border-[#333]"
+                />
+              </div>
+
+              <div className="flex gap-2 mt-5">
+                <button
+                  onClick={
+                    handleSaveItem
+                  }
+                  className="flex-1 btn-primary py-3"
+                >
+                  {editingItem
+                    ? 'Update Item'
+                    : 'Add Item'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
     </div>
   );
 }
