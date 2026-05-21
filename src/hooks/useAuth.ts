@@ -15,6 +15,7 @@ import type {
   Member,
 } from '@/types';
 
+// IMPORTANT
 import { checkGuildMember } from '@/lib/discord';
 
 export function useAuth() {
@@ -34,7 +35,7 @@ export function useAuth() {
     user: CurrentUser['user']
   ) => {
     try {
-      // SERVER CHECK
+      // DISCORD SERVER CHECK
       const allowed =
         await checkGuildMember(
           user.id
@@ -67,13 +68,13 @@ export function useAuth() {
           ?.full_name ||
         'Unknown';
 
-      // CHECK IF MEMBER EXISTS
+      // CHECK EXISTING MEMBER
       let member =
         await getMemberByDiscordId(
           user.id
         );
 
-      // ONLY CREATE MEMBER FIRST TIME
+      // ONLY CREATE FIRST TIME
       if (!member) {
         await upsertMember({
           discord_id: user.id,
@@ -81,7 +82,7 @@ export function useAuth() {
           avatar: avatarUrl,
         });
 
-        // REFETCH CREATED MEMBER
+        // REFETCH
         member =
           await getMemberByDiscordId(
             user.id
@@ -91,7 +92,7 @@ export function useAuth() {
       // FAILSAFE
       if (!member) {
         console.error(
-          'Member creation failed'
+          'Failed to create member'
         );
 
         return;
@@ -106,6 +107,8 @@ export function useAuth() {
             ...user.user_metadata,
             avatar_url:
               avatarUrl,
+
+            // USE DATABASE NAME
             full_name:
               member.username,
           },
@@ -196,8 +199,6 @@ export function useAuth() {
             session?.user &&
             mounted
           ) {
-            // IMPORTANT:
-            // avoid async deadlock
             Promise.resolve()
               .then(() =>
                 handleUser(
@@ -272,7 +273,7 @@ export function useAuth() {
   };
 }
 
-// MEMBERS HOOK
+// MEMBERS
 export function useMembers() {
   const [members, setMembers] =
     useState<Member[]>([]);
@@ -283,7 +284,6 @@ export function useMembers() {
   const loaded =
     useRef(false);
 
-  // LOAD MEMBERS
   const loadMembers =
     async () => {
       setLoading(true);
@@ -317,7 +317,6 @@ export function useMembers() {
       }
     };
 
-  // INITIAL LOAD
   useEffect(() => {
     if (
       loaded.current
