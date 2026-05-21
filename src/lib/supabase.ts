@@ -10,7 +10,7 @@ const SUPABASE_URL =
   'https://huvgvbppxllgrqtpcaxx.supabase.co';
 
 const SUPABASE_KEY =
-  'YOUR_SUPABASE_ANON_KEY';
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh1dmd2YnBweGxsZ3JxdHBjYXh4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkyNTE4NTEsImV4cCI6MjA5NDgyNzg1MX0.5xBd2gB8sycVab4FOhcnXl6Nrql1ZAmSsfOgQGfMY54';
 
 export const supabase = createClient(
   SUPABASE_URL,
