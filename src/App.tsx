@@ -271,20 +271,25 @@ function App() {
                 (item) => (
                   <button
                     key={item.id}
-                    onClick={() => {
-                      setPage(
-                        item.id
-                      );
+                  onClick={() => {
+  // FORCE PAGE REFRESH
+  if (page === item.id) {
+    window.location.reload();
+    return;
+  }
 
-                      if (
-                        item.id ===
-                        'auctions'
-                      ) {
-                        setAuctionNotifications(
-                          0
-                        );
-                      }
-                    }}
+  setPage(item.id);
+
+  // REFRESH ATTENDANCE PAGE
+  if (item.id === 'attendance') {
+    loadMembers();
+  }
+
+  // CLEAR AUCTION NOTIFICATIONS
+  if (item.id === 'auctions') {
+    setAuctionNotifications(0);
+  }
+}}
                     className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all ${
                       page === item.id
                         ? 'bg-cyan-400/10 text-cyan-400 border border-cyan-400/20'
