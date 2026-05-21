@@ -21,7 +21,7 @@ function App() {
 
   useEffect(() => {
     const channel = supabase
-      .channel('auction-realtime')
+      .channel('auction-realtime-app')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'auctions' },
