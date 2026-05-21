@@ -260,7 +260,7 @@ function App() {
                 />
 
                 <span className="font-bold text-lg hidden sm:block">
-                  Guild Dashboard
+                  Wipe4You Dashboard
                 </span>
               </div>
             </div>
