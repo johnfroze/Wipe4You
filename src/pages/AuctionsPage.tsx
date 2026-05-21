@@ -57,7 +57,7 @@ export function AuctionsPage({ currentUser, members, onMembersChange }: Props) {
     load();
 
     const channel = supabase
-      .channel('auction-realtime')
+     .channel('auction-realtime-page')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'auctions' },
