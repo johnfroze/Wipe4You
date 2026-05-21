@@ -46,6 +46,18 @@ export function ShopPage({
   const [loading, setLoading] =
     useState(true);
 
+  // INSTANT DKP UI
+  const [localDkp, setLocalDkp] =
+    useState(
+      currentUser?.member.dkp || 0
+    );
+
+  useEffect(() => {
+    setLocalDkp(
+      currentUser?.member.dkp || 0
+    );
+  }, [currentUser]);
+
   // Search
   const [search, setSearch] =
     useState('');
@@ -251,6 +263,9 @@ export function ShopPage({
       const newDkp =
         freshMember.dkp -
         item.price;
+
+      // INSTANT UI UPDATE
+      setLocalDkp(newDkp);
 
       // UPDATE DKP
       const {
@@ -578,11 +593,7 @@ export function ShopPage({
             <p className="text-gray-500 text-sm mt-1">
               Your balance:{' '}
               <span className="text-cyan-400 font-bold">
-                {
-                  currentUser.member
-                    .dkp
-                }{' '}
-                DKP
+                {localDkp} DKP
               </span>
             </p>
           )}
@@ -655,277 +666,6 @@ export function ShopPage({
           </select>
         </div>
       </div>
-
-      {/* GRID */}
-      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-        {filteredItems.map(
-          (item) => (
-            <div
-              key={item.id}
-              className="card overflow-hidden"
-            >
-              <div className="h-48 bg-black flex items-center justify-center overflow-hidden">
-                {item.image_url ? (
-                  <img
-                    src={
-                      item.image_url
-                    }
-                    alt={item.name}
-                    className="w-full h-full object-contain"
-                  />
-                ) : (
-                  <Package
-                    className="text-gray-700"
-                    size={48}
-                  />
-                )}
-              </div>
-
-              <div className="p-4">
-                <h3 className="font-bold text-lg mb-1">
-                  {item.name}
-                </h3>
-
-                {item.description && (
-                  <p className="text-gray-500 text-sm mb-3">
-                    {
-                      item.description
-                    }
-                  </p>
-                )}
-
-                <div className="flex justify-between mb-4">
-                  <div className="text-cyan-400 text-2xl font-bold">
-                    {item.price} DKP
-                  </div>
-
-                  <div>
-                    {stockLabel(
-                      item.current_stock
-                    )}
-                  </div>
-                </div>
-
-                <div className="flex gap-2">
-                  <button
-                    onClick={() =>
-                      buyItem(item)
-                    }
-                    className="flex-1 btn-primary py-2.5"
-                  >
-                    Buy
-                  </button>
-
-                  {isAdmin && (
-                    <button
-                      onClick={() =>
-                        openItemModal(
-                          item
-                        )
-                      }
-                      className="bg-[#222] hover:bg-[#333] p-2.5 rounded-xl"
-                    >
-                      <Edit3
-                        size={16}
-                      />
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-          )
-        )}
-      </div>
-
-      {/* EMPTY */}
-      {filteredItems.length ===
-        0 && (
-        <div className="card p-12 text-center">
-          <Package
-            className="mx-auto text-gray-600 mb-3"
-            size={48}
-          />
-
-          <p className="text-gray-500">
-            No items in shop yet
-          </p>
-        </div>
-      )}
-
-      {/* ADD ITEM MODAL */}
-      {showItemModal &&
-        isAdmin && (
-          <div className="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50">
-            <div className="bg-[#111] rounded-3xl p-6 w-full max-w-lg border border-[#222]">
-              <div className="flex justify-between items-center mb-5">
-                <h2 className="text-xl font-bold">
-                  {editingItem
-                    ? 'Edit Item'
-                    : 'Add Item'}
-                </h2>
-
-                <button
-                  onClick={() =>
-                    setShowItemModal(
-                      false
-                    )
-                  }
-                  className="text-gray-400 hover:text-white"
-                >
-                  <X size={20} />
-                </button>
-              </div>
-
-              <div className="space-y-4">
-                <input
-                  value={
-                    itemForm.name
-                  }
-                  onChange={(
-                    e
-                  ) =>
-                    setItemForm(
-                      (
-                        p
-                      ) => ({
-                        ...p,
-                        name: e
-                          .target
-                          .value,
-                      })
-                    )
-                  }
-                  placeholder="Item Name"
-                  className="w-full p-3 rounded-xl bg-black border border-[#333]"
-                />
-
-                <textarea
-                  value={
-                    itemForm.description
-                  }
-                  onChange={(
-                    e
-                  ) =>
-                    setItemForm(
-                      (
-                        p
-                      ) => ({
-                        ...p,
-                        description:
-                          e
-                            .target
-                            .value,
-                      })
-                    )
-                  }
-                  placeholder="Description"
-                  className="w-full p-3 rounded-xl bg-black border border-[#333]"
-                />
-
-                <div className="grid grid-cols-2 gap-3">
-                  <input
-                    value={
-                      itemForm.price
-                    }
-                    onChange={(
-                      e
-                    ) =>
-                      setItemForm(
-                        (
-                          p
-                        ) => ({
-                          ...p,
-                          price:
-                            e
-                              .target
-                              .value,
-                        })
-                      )
-                    }
-                    type="number"
-                    placeholder="Price"
-                    className="w-full p-3 rounded-xl bg-black border border-[#333]"
-                  />
-
-                  <input
-                    value={
-                      itemForm.stock
-                    }
-                    onChange={(
-                      e
-                    ) =>
-                      setItemForm(
-                        (
-                          p
-                        ) => ({
-                          ...p,
-                          stock:
-                            e
-                              .target
-                              .value,
-                        })
-                      )
-                    }
-                    type="number"
-                    placeholder="Stock"
-                    className="w-full p-3 rounded-xl bg-black border border-[#333]"
-                  />
-                </div>
-
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(
-                    e
-                  ) =>
-                    setItemForm(
-                      (
-                        p
-                      ) => ({
-                        ...p,
-                        image:
-                          e
-                            .target
-                            .files?.[0] ||
-                          null,
-                      })
-                    )
-                  }
-                  className="w-full p-3 rounded-xl bg-black border border-[#333]"
-                />
-              </div>
-
-              <div className="flex gap-2 mt-5">
-                {editingItem && (
-                  <button
-                    onClick={() =>
-                      handleDeleteItem(
-                        editingItem.id
-                      )
-                    }
-                    className="bg-red-600/20 text-red-400 hover:bg-red-600/30 px-4 py-3 rounded-xl flex items-center gap-2"
-                  >
-                    <Trash2
-                      size={16}
-                    />
-                    Delete
-                  </button>
-                )}
-
-                <button
-                  onClick={
-                    handleSaveItem
-                  }
-                  className="flex-1 btn-primary py-3"
-                >
-                  {editingItem
-                    ? 'Update Item'
-                    : 'Add to Shop'}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
     </div>
   );
 }
