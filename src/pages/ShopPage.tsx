@@ -17,15 +17,11 @@ import {
   ShoppingBag,
   Plus,
   Package,
-  AlertTriangle,
-  Check,
   X,
-  Minus,
   Trash2,
   Edit3,
   Search,
   Filter,
-  Bell,
 } from 'lucide-react';
 
 interface Props {
@@ -61,22 +57,6 @@ export function ShopPage({
       | 'price-high'
       | 'stock'
     >('newest');
-
-  // Buy Modal
-  const [buyItem, setBuyItem] =
-    useState<ShopItem | null>(null);
-
-  const [buyQty, setBuyQty] =
-    useState(1);
-
-  const [buyConfirm, setBuyConfirm] =
-    useState(false);
-
-  const [buyError, setBuyError] =
-    useState('');
-
-  const [buySuccess, setBuySuccess] =
-    useState('');
 
   // Add/Edit Modal
   const [
@@ -203,8 +183,8 @@ export function ShopPage({
         }
       });
 
-  // BUY MODAL
-  const openBuyModal = (
+  // BUY ITEM
+  const buyItem = async (
     item: ShopItem
   ) => {
     if (!currentUser) {
@@ -212,52 +192,30 @@ export function ShopPage({
         'Please login first',
         'error'
       );
-      return;
-    }
 
-    setBuyItem(item);
-    setBuyQty(1);
-    setBuyConfirm(false);
-    setBuyError('');
-    setBuySuccess('');
-  };
-
-  // BUY ITEM
-  const handleBuy = async () => {
-    if (!buyItem || !currentUser)
-      return;
-
-    const totalCost =
-      buyItem.price * buyQty;
-
-    if (
-      currentUser.member.dkp <
-      totalCost
-    ) {
-      setBuyError(
-        'Not enough DKP'
-      );
-      return;
-    }
-
-    if (
-      buyQty >
-      buyItem.current_stock
-    ) {
-      setBuyError(
-        'Not enough stock'
-      );
       return;
     }
 
     try {
+      if (
+        currentUser.member.dkp <
+        item.price
+      ) {
+        showToast(
+          'Not enough DKP',
+          'error'
+        );
+
+        return;
+      }
+
       // Remove DKP
       await supabase
         .from('members')
         .update({
           dkp:
             currentUser.member
-              .dkp - totalCost,
+              .dkp - item.price,
         })
         .eq(
           'id',
@@ -269,10 +227,9 @@ export function ShopPage({
         .from('shop_items')
         .update({
           current_stock:
-            buyItem.current_stock -
-            buyQty,
+            item.current_stock - 1,
         })
-        .eq('id', buyItem.id);
+        .eq('id', item.id);
 
       // Create transaction
       await supabase
@@ -280,30 +237,27 @@ export function ShopPage({
         .insert({
           buyer_id:
             currentUser.member.id,
-          item_id: buyItem.id,
-          quantity: buyQty,
-          total_price:
-            totalCost,
+          item_id: item.id,
+          quantity: 1,
+          total_price: item.price,
           distribution_status:
             'pending',
         });
 
-      setBuySuccess(
-        `Purchased ${buyQty}x ${buyItem.name}`
-      );
-
       await onDkpChange();
 
-      loadItems();
+      await loadItems();
 
-      setTimeout(() => {
-        setBuyItem(null);
-      }, 2500);
+      showToast(
+        `Purchased ${item.name}`,
+        'success'
+      );
     } catch (err) {
       console.error(err);
 
-      setBuyError(
-        'Purchase failed'
+      showToast(
+        'Purchase failed',
+        'error'
       );
     }
   };
@@ -693,9 +647,7 @@ export function ShopPage({
                 <div className="flex gap-2">
                   <button
                     onClick={() =>
-                      openBuyModal(
-                        item
-                      )
+                      buyItem(item)
                     }
                     className="flex-1 btn-primary py-2.5"
                   >
