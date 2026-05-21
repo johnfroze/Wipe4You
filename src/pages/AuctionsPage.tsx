@@ -41,7 +41,7 @@ export function AuctionsPage({
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Anti duplicate processing
+  // Prevent duplicate auction ending
   const processingRef = useRef(new Set<number>());
 
   // Form
@@ -60,7 +60,7 @@ export function AuctionsPage({
   membersRef.current = members;
   onMembersChangeRef.current = onMembersChange;
 
-  // LOAD AUCTIONS
+  // Load Auctions + Realtime
   useEffect(() => {
     let cancelled = false;
 
@@ -105,7 +105,7 @@ export function AuctionsPage({
     };
   }, []);
 
-  // LIVE TIMER
+  // Live timer rerender
   useEffect(() => {
     const interval = setInterval(() => {
       setNow(Date.now());
@@ -114,7 +114,7 @@ export function AuctionsPage({
     return () => clearInterval(interval);
   }, []);
 
-  // AUTO END AUCTIONS
+  // Auto end auctions
   useEffect(() => {
     const checkEndedAuctions = async () => {
       const currentAuctions = auctionsRef.current;
@@ -549,6 +549,84 @@ export function AuctionsPage({
           );
         })}
       </div>
+
+      {showModal && (
+        <div className="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50">
+          <div className="bg-[#111] rounded-3xl p-6 w-full max-w-xl border border-[#222]">
+            <div className="flex justify-between items-center mb-5">
+              <h2 className="text-2xl font-bold flex items-center gap-2">
+                <Gavel className="text-cyan-400" size={24} />
+                Create Auction
+              </h2>
+
+              <button
+                onClick={() => setShowModal(false)}
+                className="text-gray-400 hover:text-white"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <input
+                value={itemName}
+                onChange={(e) =>
+                  setItemName(e.target.value)
+                }
+                placeholder="Item Name"
+                className="w-full p-3 rounded-xl bg-black border border-[#333]"
+              />
+
+              <input
+                value={startBid}
+                onChange={(e) =>
+                  setStartBid(e.target.value)
+                }
+                type="number"
+                placeholder="Starting Bid"
+                className="w-full p-3 rounded-xl bg-black border border-[#333]"
+              />
+
+              <input
+                value={increment}
+                onChange={(e) =>
+                  setIncrement(e.target.value)
+                }
+                type="number"
+                placeholder="Increment"
+                className="w-full p-3 rounded-xl bg-black border border-[#333]"
+              />
+
+              <input
+                value={minutes}
+                onChange={(e) =>
+                  setMinutes(e.target.value)
+                }
+                type="number"
+                placeholder="Duration Minutes"
+                className="w-full p-3 rounded-xl bg-black border border-[#333]"
+              />
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="w-full p-3 rounded-xl bg-black border border-[#333]"
+              />
+            </div>
+
+            <button
+              onClick={handleCreateAuction}
+              disabled={uploading}
+              className="btn-primary w-full mt-5 py-3"
+            >
+              {uploading
+                ? 'Uploading...'
+                : 'Create Auction'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
