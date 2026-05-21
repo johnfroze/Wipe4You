@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase, getMemberByDiscordId, upsertMember } from '@/lib/supabase';
 import type { CurrentUser, Member } from '@/types';
+import { checkGuildMember } from '@/lib/discord';
 
 export function useAuth() {
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
