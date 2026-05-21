@@ -197,8 +197,26 @@ export function ShopPage({
     }
 
     try {
+      // GET FRESH DKP
+      const {
+        data: freshMember,
+        error: memberError,
+      } = await supabase
+        .from('members')
+        .select('dkp')
+        .eq(
+          'id',
+          currentUser.member.id
+        )
+        .single();
+
+      if (memberError) {
+        throw memberError;
+      }
+
+      // CHECK DKP
       if (
-        currentUser.member.dkp <
+        freshMember.dkp <
         item.price
       ) {
         showToast(
@@ -209,21 +227,32 @@ export function ShopPage({
         return;
       }
 
-      // Remove DKP
-      await supabase
+      // NEW DKP
+      const newDkp =
+        freshMember.dkp -
+        item.price;
+
+      // UPDATE DKP
+      const {
+        error: dkpError,
+      } = await supabase
         .from('members')
         .update({
-          dkp:
-            currentUser.member
-              .dkp - item.price,
+          dkp: newDkp,
         })
         .eq(
           'id',
           currentUser.member.id
         );
 
-      // Reduce stock
-      await supabase
+      if (dkpError) {
+        throw dkpError;
+      }
+
+      // UPDATE STOCK
+      const {
+        error: stockError,
+      } = await supabase
         .from('shop_items')
         .update({
           current_stock:
@@ -231,8 +260,14 @@ export function ShopPage({
         })
         .eq('id', item.id);
 
-      // Create transaction
-      await supabase
+      if (stockError) {
+        throw stockError;
+      }
+
+      // CREATE TRANSACTION
+      const {
+        error: transactionError,
+      } = await supabase
         .from('shop_transactions')
         .insert({
           buyer_id:
@@ -244,12 +279,17 @@ export function ShopPage({
             'pending',
         });
 
+      if (transactionError) {
+        throw transactionError;
+      }
+
+      // REFRESH
       await onDkpChange();
 
       await loadItems();
 
       showToast(
-        `Purchased ${item.name}`,
+        `Purchased ${item.name} for ${item.price} DKP`,
         'success'
       );
     } catch (err) {
