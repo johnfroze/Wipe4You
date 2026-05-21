@@ -36,10 +36,8 @@ export function useAuth() {
   ) => {
     try {
       // DISCORD SERVER CHECK
-      const allowed =
-        await checkGuildMember(
-          user.id
-        );
+    const allowed =
+  await checkGuildMember();;
 
       if (!allowed) {
         await supabase.auth.signOut();
