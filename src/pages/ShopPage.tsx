@@ -196,14 +196,22 @@ export function ShopPage({
       return;
     }
 
+    // CONFIRM
+    const confirmed =
+      window.confirm(
+        `Buy "${item.name}" for ${item.price} DKP?`
+      );
+
+    if (!confirmed) return;
+
     try {
-      // GET FRESH DKP
+      // GET FRESH MEMBER DATA
       const {
         data: freshMember,
         error: memberError,
       } = await supabase
         .from('members')
-        .select('dkp')
+        .select('*')
         .eq(
           'id',
           currentUser.member.id
@@ -214,13 +222,25 @@ export function ShopPage({
         throw memberError;
       }
 
-      // CHECK DKP
+      // DKP CHECK
       if (
         freshMember.dkp <
         item.price
       ) {
         showToast(
           'Not enough DKP',
+          'error'
+        );
+
+        return;
+      }
+
+      // STOCK CHECK
+      if (
+        item.current_stock <= 0
+      ) {
+        showToast(
+          'Item out of stock',
           'error'
         );
 
@@ -283,11 +303,13 @@ export function ShopPage({
         throw transactionError;
       }
 
-      // REFRESH
-      await onDkpChange();
+      // REFRESH UI
+      await Promise.all([
+        onDkpChange(),
+        loadItems(),
+      ]);
 
-      await loadItems();
-
+      // SUCCESS
       showToast(
         `Purchased ${item.name} for ${item.price} DKP`,
         'success'
