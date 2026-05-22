@@ -7,6 +7,7 @@ import { AdminPage } from '@/pages/AdminPage';
 import { ShopPage } from '@/pages/ShopPage';
 import { ShopLogPage } from '@/pages/ShopLogPage';
 import { MyHistoryPage } from '@/pages/MyHistoryPage';
+import HomePage from './pages/HomePage';
 
 import {
   Shield,
