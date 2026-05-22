@@ -41,11 +41,9 @@ export function ShopPage({
   const [loading, setLoading] =
     useState(true);
 
-  // SHOP STATUS
   const [shopEnabled, setShopEnabled] =
     useState(true);
 
-  // LIVE DKP
   const [localDkp, setLocalDkp] =
     useState(
       currentUser?.member.dkp || 0
@@ -395,6 +393,44 @@ export function ShopPage({
     }
   };
 
+  // DELETE ITEM
+  const deleteItem = async (
+    item: ShopItem
+  ) => {
+    const confirmed =
+      window.confirm(
+        `Delete "${item.name}"?`
+      );
+
+    if (!confirmed) return;
+
+    try {
+      const { error } =
+        await supabase
+          .from('shop_items')
+          .delete()
+          .eq('id', item.id);
+
+      if (error) {
+        throw error;
+      }
+
+      await loadItems();
+
+      showToast(
+        'Item deleted',
+        'success'
+      );
+    } catch (err) {
+      console.error(err);
+
+      showToast(
+        'Failed deleting item',
+        'error'
+      );
+    }
+  };
+
   // LOADING
   if (loading) {
     return (
@@ -620,109 +656,124 @@ export function ShopPage({
                 </button>
 
                 {isAdmin && (
-                  <button
-                    onClick={async () => {
-                      try {
-                        const newName =
-                          prompt(
-                            'New item name',
-                            item.name
-                          );
+                  <>
+                    {/* EDIT */}
+                    <button
+                      onClick={async () => {
+                        try {
+                          const newName =
+                            prompt(
+                              'New item name',
+                              item.name
+                            );
 
-                        if (
-                          !newName
-                        )
-                          return;
-
-                        const newPrice =
-                          prompt(
-                            'New price',
-                            String(
-                              item.price
-                            )
-                          );
-
-                        if (
-                          !newPrice
-                        )
-                          return;
-
-                        const newStock =
-                          prompt(
-                            'New stock',
-                            String(
-                              item.current_stock
-                            )
-                          );
-
-                        if (
-                          !newStock
-                        )
-                          return;
-
-                        const newImage =
-                          prompt(
-                            'New image URL',
-                            item.image_url ||
-                              ''
-                          );
-
-                        const {
-                          error,
-                        } = await supabase
-                          .from(
-                            'shop_items'
+                          if (
+                            !newName
                           )
-                          .update({
-                            name:
-                              newName,
-                            price:
-                              parseInt(
-                                newPrice
-                              ),
-                            current_stock:
-                              parseInt(
-                                newStock
-                              ),
-                            total_stock:
-                              parseInt(
-                                newStock
-                              ),
-                            image_url:
-                              newImage ||
-                              '',
-                          })
-                          .eq(
-                            'id',
-                            item.id
+                            return;
+
+                          const newPrice =
+                            prompt(
+                              'New price',
+                              String(
+                                item.price
+                              )
+                            );
+
+                          if (
+                            !newPrice
+                          )
+                            return;
+
+                          const newStock =
+                            prompt(
+                              'New stock',
+                              String(
+                                item.current_stock
+                              )
+                            );
+
+                          if (
+                            !newStock
+                          )
+                            return;
+
+                          const newImage =
+                            prompt(
+                              'New image URL',
+                              item.image_url ||
+                                ''
+                            );
+
+                          const {
+                            error,
+                          } = await supabase
+                            .from(
+                              'shop_items'
+                            )
+                            .update({
+                              name:
+                                newName,
+                              price:
+                                parseInt(
+                                  newPrice
+                                ),
+                              current_stock:
+                                parseInt(
+                                  newStock
+                                ),
+                              total_stock:
+                                parseInt(
+                                  newStock
+                                ),
+                              image_url:
+                                newImage ||
+                                '',
+                            })
+                            .eq(
+                              'id',
+                              item.id
+                            );
+
+                          if (
+                            error
+                          )
+                            throw error;
+
+                          await loadItems();
+
+                          showToast(
+                            'Item updated',
+                            'success'
+                          );
+                        } catch (err) {
+                          console.error(
+                            err
                           );
 
-                        if (
-                          error
+                          showToast(
+                            'Failed updating item',
+                            'error'
+                          );
+                        }
+                      }}
+                      className="px-4 rounded-xl bg-[#222] hover:bg-[#333]"
+                    >
+                      ✏️
+                    </button>
+
+                    {/* DELETE */}
+                    <button
+                      onClick={() =>
+                        deleteItem(
+                          item
                         )
-                          throw error;
-
-                        await loadItems();
-
-                        showToast(
-                          'Item updated',
-                          'success'
-                        );
-                      } catch (err) {
-                        console.error(
-                          err
-                        );
-
-                        showToast(
-                          'Failed updating item',
-                          'error'
-                        );
                       }
-                    }}
-                    className="px-4 rounded-xl bg-[#222] hover:bg-[#333]"
-                  >
-                    ✏️
-                  </button>
+                      className="px-4 rounded-xl bg-red-500/20 hover:bg-red-500/40 text-red-400"
+                    >
+                      🗑️
+                    </button>
+                  </>
                 )}
               </div>
             </div>
