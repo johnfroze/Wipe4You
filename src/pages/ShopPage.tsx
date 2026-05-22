@@ -45,6 +45,9 @@ export function ShopPage({
 
   const [loading, setLoading] =
     useState(true);
+  
+  const [shopEnabled, setShopEnabled] =
+  useState(true);
 
   // INSTANT DKP UPDATE
   const [localDkp, setLocalDkp] =
