@@ -5,7 +5,7 @@ interface Props {
 export default function HomePage({
   onLogin,
 }: Props) {
-  const features = [
+  const _features = [
     {
       title: 'Attendance Tracking',
       desc: 'Track raids, guild events, and automatically reward DKP to active members.',
