@@ -436,52 +436,99 @@ export function ShopPage({
         </div>
 
         {isAdmin && (
-          <button
-            onClick={async () => {
-              try {
-                const newState =
-                  !shopEnabled;
+  <button
+    onClick={async () => {
+      try {
+        const newName = prompt(
+          'New item name',
+          item.name
+        );
 
-                const {
-                  error,
-                } = await supabase
-                  .from(
-                    'shop_settings'
-                  )
-                  .update({
-                    shop_enabled:
-                      newState,
-                  })
-                  .gt('id', 0);
+        if (!newName) return;
 
-                if (error) {
-                  throw error;
-                }
+        const newPrice = prompt(
+          'New price',
+          String(item.price)
+        );
 
-                setShopEnabled(
-                  newState
-                );
+        if (!newPrice) return;
 
-                showToast(
-                  newState
-                    ? 'Shop opened'
-                    : 'Shop closed',
-                  'success'
-                );
-              } catch (err) {
-                console.error(err);
+        const newStock = prompt(
+          'New stock',
+          String(item.current_stock)
+        );
 
-                showToast(
-                  'Failed updating shop',
-                  'error'
-                );
-              }
-            }}
-            className={`px-4 py-2 rounded-xl font-bold ${
-              shopEnabled
-                ? 'bg-red-500/20 text-red-400'
-                : 'bg-green-500/20 text-green-400'
-            }`}
+        if (!newStock) return;
+
+        const imageChoice = window.confirm(
+          'Do you want to change image URL?'
+        );
+
+        let newImage =
+          item.image_url || '';
+
+        if (imageChoice) {
+          const imageInput =
+            prompt(
+              'Paste image URL',
+              item.image_url || ''
+            );
+
+          if (imageInput !== null) {
+            newImage =
+              imageInput;
+          }
+        }
+
+        const {
+          error,
+        } = await supabase
+          .from('shop_items')
+          .update({
+            name: newName,
+            price:
+              parseInt(
+                newPrice
+              ),
+            current_stock:
+              parseInt(
+                newStock
+              ),
+            total_stock:
+              parseInt(
+                newStock
+              ),
+            image_url:
+              newImage,
+          })
+          .eq(
+            'id',
+            item.id
+          );
+
+        if (error)
+          throw error;
+
+        await loadItems();
+
+        showToast(
+          'Item updated',
+          'success'
+        );
+      } catch (err) {
+        console.error(err);
+
+        showToast(
+          'Failed updating item',
+          'error'
+        );
+      }
+    }}
+    className="px-4 rounded-xl bg-[#222] hover:bg-[#333]"
+  >
+    ✏️
+  </button>
+)}
           >
             {shopEnabled
               ? 'Close Shop'
