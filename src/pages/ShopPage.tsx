@@ -6,6 +6,7 @@ import {
 
 import {
   getShopItems,
+  uploadShopImage,
   supabase,
 } from '@/lib/supabase';
 
@@ -60,7 +61,7 @@ export function ShopPage({
     useState('');
 
   const [itemImage, setItemImage] =
-    useState('');
+    useState<File | null>(null);
 
   // TOAST
   const [toast, setToast] =
@@ -343,13 +344,22 @@ export function ShopPage({
     }
 
     try {
+      let imageUrl = '';
+
+      if (itemImage) {
+        imageUrl =
+          await uploadShopImage(
+            itemImage
+          );
+      }
+
       const {
         error,
       } = await supabase
         .from('shop_items')
         .insert({
           name: itemName,
-          image_url: itemImage,
+          image_url: imageUrl,
           price:
             parseInt(
               itemPrice
@@ -375,7 +385,7 @@ export function ShopPage({
       setItemName('');
       setItemPrice('');
       setItemStock('');
-      setItemImage('');
+      setItemImage(null);
 
       await loadItems();
 
@@ -581,13 +591,14 @@ export function ShopPage({
             />
 
             <input
-              value={itemImage}
+              type="file"
+              accept="image/*"
               onChange={(e) =>
                 setItemImage(
-                  e.target.value
+                  e.target.files?.[0] ||
+                    null
                 )
               }
-              placeholder="Image URL"
               className="bg-black border border-[#333] rounded-xl p-3"
             />
           </div>
