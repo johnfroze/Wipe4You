@@ -1,4 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+import {
+  useState,
+  useEffect,
+  useCallback,
+} from 'react';
 
 import {
   getShopItems,
@@ -39,17 +43,17 @@ export function ShopPage({
     currentUser?.member.role ===
       'elder';
 
-  const [items, setItems] = useState<
-    ShopItem[]
-  >([]);
+  const [items, setItems] =
+    useState<ShopItem[]>([]);
 
   const [loading, setLoading] =
     useState(true);
-  
-  const [shopEnabled, setShopEnabled] =
-  useState(true);
 
-  // INSTANT DKP UPDATE
+  // SHOP STATUS
+  const [shopEnabled, setShopEnabled] =
+    useState(true);
+
+  // LIVE DKP
   const [localDkp, setLocalDkp] =
     useState(
       currentUser?.member.dkp || 0
@@ -109,6 +113,28 @@ export function ShopPage({
     }, 4000);
   };
 
+  // LOAD SHOP SETTINGS
+  const loadShopSettings =
+    async () => {
+      try {
+        const { data } =
+          await supabase
+            .from('shop_settings')
+            .select(
+              'shop_enabled'
+            )
+            .single();
+
+        if (data) {
+          setShopEnabled(
+            data.shop_enabled
+          );
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    };
+
   // LOAD ITEMS
   const loadItems = useCallback(
     async () => {
@@ -126,7 +152,10 @@ export function ShopPage({
 
   // REALTIME
   useEffect(() => {
-    loadItems().finally(() =>
+    Promise.all([
+      loadItems(),
+      loadShopSettings(),
+    ]).finally(() =>
       setLoading(false)
     );
 
@@ -148,9 +177,35 @@ export function ShopPage({
       )
       .subscribe();
 
+    const settingsChannel =
+      supabase
+        .channel(
+          'shop-settings-realtime'
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table:
+              'shop_settings',
+          },
+          async () => {
+            loadShopSettings();
+          }
+        )
+        .subscribe();
+
     return () => {
       channel.unsubscribe();
-      supabase.removeChannel(channel);
+
+      supabase.removeChannel(
+        channel
+      );
+
+      supabase.removeChannel(
+        settingsChannel
+      );
     };
   }, [loadItems]);
 
@@ -207,6 +262,16 @@ export function ShopPage({
       return;
     }
 
+    // SHOP CLOSED
+    if (!shopEnabled) {
+      showToast(
+        'DKP Shop is currently closed',
+        'error'
+      );
+
+      return;
+    }
+
     const confirmed =
       window.confirm(
         `Buy "${item.name}" for ${item.price} DKP?`
@@ -215,7 +280,7 @@ export function ShopPage({
     if (!confirmed) return;
 
     try {
-      // GET LATEST MEMBER
+      // GET FRESH MEMBER
       const {
         data: freshMember,
         error: memberError,
@@ -232,7 +297,7 @@ export function ShopPage({
         throw memberError;
       }
 
-      // CHECK DKP
+      // DKP CHECK
       if (
         freshMember.dkp <
         item.price
@@ -245,12 +310,12 @@ export function ShopPage({
         return;
       }
 
-      // CHECK STOCK
+      // STOCK CHECK
       if (
         item.current_stock <= 0
       ) {
         showToast(
-          'Item out of stock',
+          'Out of stock',
           'error'
         );
 
@@ -262,7 +327,7 @@ export function ShopPage({
         freshMember.dkp -
         item.price;
 
-      // INSTANT UI UPDATE
+      // INSTANT UI
       setLocalDkp(newDkp);
 
       // UPDATE DKP
@@ -297,17 +362,21 @@ export function ShopPage({
         throw stockError;
       }
 
-      // TRANSACTION
+      // CREATE TRANSACTION
       const {
-        error: transactionError,
+        error:
+          transactionError,
       } = await supabase
-        .from('shop_transactions')
+        .from(
+          'shop_transactions'
+        )
         .insert({
           buyer_id:
             currentUser.member.id,
           item_id: item.id,
           quantity: 1,
-          total_price: item.price,
+          total_price:
+            item.price,
           distribution_status:
             'pending',
         });
@@ -554,341 +623,74 @@ export function ShopPage({
         </div>
 
         {isAdmin && (
-          <button
-            onClick={() =>
-              openItemModal()
-            }
-            className="btn-primary flex items-center gap-2"
-          >
-            <Plus size={16} />
-            Add Item
-          </button>
-        )}
-      </div>
+          <div className="flex gap-2">
+            <button
+              onClick={async () => {
+                try {
+                  const {
+                    error,
+                  } = await supabase
+                    .from(
+                      'shop_settings'
+                    )
+                    .update({
+                      shop_enabled:
+                        !shopEnabled,
+                    })
+                    .eq('id', 1);
 
-      {/* SEARCH */}
-      <div className="flex gap-3">
-        <div className="relative flex-1">
-          <Search
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500"
-            size={16}
-          />
+                  if (error)
+                    throw error;
 
-          <input
-            value={search}
-            onChange={(e) =>
-              setSearch(
-                e.target.value
-              )
-            }
-            placeholder="Search items..."
-            className="w-full pl-10 pr-4 py-2.5 bg-black border border-[#333] rounded-xl text-sm"
-          />
-        </div>
+                  setShopEnabled(
+                    !shopEnabled
+                  );
 
-        <div className="relative">
-          <Filter
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500"
-            size={16}
-          />
+                  showToast(
+                    !shopEnabled
+                      ? 'Shop opened'
+                      : 'Shop closed',
+                    'success'
+                  );
+                } catch (err) {
+                  console.error(err);
 
-          <select
-            value={sortBy}
-            onChange={(e) =>
-              setSortBy(
-                e.target
-                  .value as typeof sortBy
-              )
-            }
-            className="pl-10 pr-8 py-2.5 bg-black border border-[#333] rounded-xl text-sm"
-          >
-            <option value="newest">
-              Newest
-            </option>
-
-            <option value="price-low">
-              Price Low
-            </option>
-
-            <option value="price-high">
-              Price High
-            </option>
-
-            <option value="stock">
-              Stock
-            </option>
-          </select>
-        </div>
-      </div>
-
-      {/* ITEMS */}
-      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-        {filteredItems.map(
-          (item) => (
-            <div
-              key={item.id}
-              className="card overflow-hidden"
+                  showToast(
+                    'Failed to update shop',
+                    'error'
+                  );
+                }
+              }}
+              className={`px-4 py-2 rounded-xl font-medium ${
+                shopEnabled
+                  ? 'bg-red-500/20 text-red-400'
+                  : 'bg-green-500/20 text-green-400'
+              }`}
             >
-              <div className="h-48 bg-black flex items-center justify-center overflow-hidden">
-                {item.image_url ? (
-                  <img
-                    src={
-                      item.image_url
-                    }
-                    alt={item.name}
-                    className="w-full h-full object-contain"
-                  />
-                ) : (
-                  <Package
-                    className="text-gray-700"
-                    size={48}
-                  />
-                )}
-              </div>
+              {shopEnabled
+                ? 'Close Shop'
+                : 'Open Shop'}
+            </button>
 
-              <div className="p-4">
-                <h3 className="font-bold text-lg">
-                  {item.name}
-                </h3>
-
-                <p className="text-gray-500 text-sm mt-1">
-                  {
-                    item.description
-                  }
-                </p>
-
-                <div className="flex justify-between mt-4">
-                  <span className="text-cyan-400 font-bold text-xl">
-                    {item.price} DKP
-                  </span>
-
-                  <span className="text-green-400 text-sm">
-                    {
-                      item.current_stock
-                    }{' '}
-                    in stock
-                  </span>
-                </div>
-
-                <div className="flex gap-2 mt-4">
-                  <button
-                    onClick={() =>
-                      buyItem(item)
-                    }
-                    className="flex-1 btn-primary py-2"
-                  >
-                    Buy
-                  </button>
-
-                  {isAdmin && (
-                    <>
-                      <button
-                        onClick={() =>
-                          openItemModal(
-                            item
-                          )
-                        }
-                        className="bg-[#222] hover:bg-[#333] p-2 rounded-xl"
-                      >
-                        <Edit3
-                          size={16}
-                        />
-                      </button>
-
-                      <button
-                        onClick={() =>
-                          handleDeleteItem(
-                            item.id
-                          )
-                        }
-                        className="bg-red-500/20 hover:bg-red-500/30 text-red-400 p-2 rounded-xl"
-                      >
-                        <Trash2
-                          size={16}
-                        />
-                      </button>
-                    </>
-                  )}
-                </div>
-              </div>
-            </div>
-          )
-        )}
-      </div>
-
-      {/* EMPTY */}
-      {filteredItems.length ===
-        0 && (
-        <div className="card p-12 text-center">
-          <Package
-            className="mx-auto text-gray-600 mb-3"
-            size={48}
-          />
-
-          <p className="text-gray-500">
-            No items in shop yet
-          </p>
-        </div>
-      )}
-
-      {/* MODAL */}
-      {showItemModal &&
-        isAdmin && (
-          <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-            <div className="bg-[#111] border border-[#222] rounded-3xl p-6 w-full max-w-lg">
-              <div className="flex justify-between items-center mb-5">
-                <h2 className="text-xl font-bold">
-                  {editingItem
-                    ? 'Edit Item'
-                    : 'Add Item'}
-                </h2>
-
-                <button
-                  onClick={() =>
-                    setShowItemModal(
-                      false
-                    )
-                  }
-                  className="text-gray-400 hover:text-white"
-                >
-                  <X size={20} />
-                </button>
-              </div>
-
-              <div className="space-y-4">
-                <input
-                  value={
-                    itemForm.name
-                  }
-                  onChange={(
-                    e
-                  ) =>
-                    setItemForm(
-                      (
-                        prev
-                      ) => ({
-                        ...prev,
-                        name: e
-                          .target
-                          .value,
-                      })
-                    )
-                  }
-                  placeholder="Item Name"
-                  className="w-full p-3 rounded-xl bg-black border border-[#333]"
-                />
-
-                <textarea
-                  value={
-                    itemForm.description
-                  }
-                  onChange={(
-                    e
-                  ) =>
-                    setItemForm(
-                      (
-                        prev
-                      ) => ({
-                        ...prev,
-                        description:
-                          e
-                            .target
-                            .value,
-                      })
-                    )
-                  }
-                  placeholder="Description"
-                  className="w-full p-3 rounded-xl bg-black border border-[#333]"
-                />
-
-                <div className="grid grid-cols-2 gap-3">
-                  <input
-                    type="number"
-                    value={
-                      itemForm.price
-                    }
-                    onChange={(
-                      e
-                    ) =>
-                      setItemForm(
-                        (
-                          prev
-                        ) => ({
-                          ...prev,
-                          price:
-                            e
-                              .target
-                              .value,
-                        })
-                      )
-                    }
-                    placeholder="Price"
-                    className="w-full p-3 rounded-xl bg-black border border-[#333]"
-                  />
-
-                  <input
-                    type="number"
-                    value={
-                      itemForm.stock
-                    }
-                    onChange={(
-                      e
-                    ) =>
-                      setItemForm(
-                        (
-                          prev
-                        ) => ({
-                          ...prev,
-                          stock:
-                            e
-                              .target
-                              .value,
-                        })
-                      )
-                    }
-                    placeholder="Stock"
-                    className="w-full p-3 rounded-xl bg-black border border-[#333]"
-                  />
-                </div>
-
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(
-                    e
-                  ) =>
-                    setItemForm(
-                      (
-                        prev
-                      ) => ({
-                        ...prev,
-                        image:
-                          e
-                            .target
-                            .files?.[0] ||
-                          null,
-                      })
-                    )
-                  }
-                  className="w-full p-3 rounded-xl bg-black border border-[#333]"
-                />
-              </div>
-
-              <div className="flex gap-2 mt-5">
-                <button
-                  onClick={
-                    handleSaveItem
-                  }
-                  className="flex-1 btn-primary py-3"
-                >
-                  {editingItem
-                    ? 'Update Item'
-                    : 'Add Item'}
-                </button>
-              </div>
-            </div>
+            <button
+              onClick={() =>
+                openItemModal()
+              }
+              className="btn-primary flex items-center gap-2"
+            >
+              <Plus size={16} />
+              Add Item
+            </button>
           </div>
         )}
+      </div>
+
+      {/* SHOP CLOSED */}
+      {!shopEnabled && (
+        <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-400 text-center font-medium">
+          DKP Shop is currently closed
+        </div>
+      )}
     </div>
   );
 }
