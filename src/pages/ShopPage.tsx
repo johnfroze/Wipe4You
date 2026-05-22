@@ -192,8 +192,6 @@ export function ShopPage({
       });
 
   // BUY ITEM
-  const [shopEnabled, setShopEnabled] =
-  useState(true);
   const buyItem = async (
     item: ShopItem
   ) => {
