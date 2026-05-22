@@ -89,6 +89,7 @@ export function ShopPage({
             .select(
               'shop_enabled'
             )
+            .limit(1)
             .single();
 
         if (data) {
@@ -187,23 +188,42 @@ export function ShopPage({
   ) => {
     if (!currentUser) return;
 
-    if (!shopEnabled) {
-      showToast(
-        'Shop is closed',
-        'error'
-      );
-
-      return;
-    }
-
-    const confirmed =
-      window.confirm(
-        `Buy ${item.name} for ${item.price} DKP?`
-      );
-
-    if (!confirmed) return;
-
     try {
+      // ALWAYS CHECK DATABASE
+      const {
+        data: settings,
+        error: settingsError,
+      } = await supabase
+        .from('shop_settings')
+        .select(
+          'shop_enabled'
+        )
+        .limit(1)
+        .single();
+
+      if (settingsError) {
+        throw settingsError;
+      }
+
+      // BLOCK PURCHASE
+      if (
+        !settings?.shop_enabled
+      ) {
+        showToast(
+          'DKP Shop is currently closed',
+          'error'
+        );
+
+        return;
+      }
+
+      const confirmed =
+        window.confirm(
+          `Buy ${item.name} for ${item.price} DKP?`
+        );
+
+      if (!confirmed) return;
+
       // REFRESH MEMBER
       const {
         data: member,
@@ -220,6 +240,7 @@ export function ShopPage({
       if (memberError)
         throw memberError;
 
+      // DKP CHECK
       if (
         member.dkp <
         item.price
@@ -232,6 +253,7 @@ export function ShopPage({
         return;
       }
 
+      // STOCK CHECK
       if (
         item.current_stock <= 0
       ) {
@@ -402,7 +424,6 @@ export function ShopPage({
               className="text-cyan-400"
               size={24}
             />
-
             DKP Shop
           </h1>
 
@@ -418,28 +439,42 @@ export function ShopPage({
           <button
             onClick={async () => {
               try {
-                await supabase
+                const newState =
+                  !shopEnabled;
+
+                const {
+                  error,
+                } = await supabase
                   .from(
                     'shop_settings'
                   )
                   .update({
                     shop_enabled:
-                      !shopEnabled,
+                      newState,
                   })
-                  .eq('id', 1);
+                  .gt('id', 0);
+
+                if (error) {
+                  throw error;
+                }
 
                 setShopEnabled(
-                  !shopEnabled
+                  newState
                 );
 
                 showToast(
-                  !shopEnabled
+                  newState
                     ? 'Shop opened'
                     : 'Shop closed',
                   'success'
                 );
               } catch (err) {
                 console.error(err);
+
+                showToast(
+                  'Failed updating shop',
+                  'error'
+                );
               }
             }}
             className={`px-4 py-2 rounded-xl font-bold ${
@@ -556,17 +591,102 @@ export function ShopPage({
                 in stock
               </div>
 
-              <button
-                onClick={() =>
-                  buyItem(item)
-                }
-                disabled={
-                  !shopEnabled
-                }
-                className="btn-primary w-full mt-4"
-              >
-                Buy
-              </button>
+              <div className="flex gap-2 mt-4">
+                <button
+                  onClick={() =>
+                    buyItem(item)
+                  }
+                  disabled={
+                    !shopEnabled
+                  }
+                  className="btn-primary flex-1"
+                >
+                  Buy
+                </button>
+
+                {isAdmin && (
+                  <button
+                    onClick={async () => {
+                      const newPrice =
+                        prompt(
+                          'New price',
+                          String(
+                            item.price
+                          )
+                        );
+
+                      if (
+                        !newPrice
+                      )
+                        return;
+
+                      const newStock =
+                        prompt(
+                          'New stock',
+                          String(
+                            item.current_stock
+                          )
+                        );
+
+                      if (
+                        !newStock
+                      )
+                        return;
+
+                      try {
+                        const {
+                          error,
+                        } = await supabase
+                          .from(
+                            'shop_items'
+                          )
+                          .update({
+                            price:
+                              parseInt(
+                                newPrice
+                              ),
+                            current_stock:
+                              parseInt(
+                                newStock
+                              ),
+                            total_stock:
+                              parseInt(
+                                newStock
+                              ),
+                          })
+                          .eq(
+                            'id',
+                            item.id
+                          );
+
+                        if (
+                          error
+                        )
+                          throw error;
+
+                        loadItems();
+
+                        showToast(
+                          'Item updated',
+                          'success'
+                        );
+                      } catch (err) {
+                        console.error(
+                          err
+                        );
+
+                        showToast(
+                          'Failed updating item',
+                          'error'
+                        );
+                      }
+                    }}
+                    className="px-4 rounded-xl bg-[#222] hover:bg-[#333]"
+                  >
+                    ✏️
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         ))}
