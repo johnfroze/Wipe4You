@@ -1,4 +1,10 @@
-export default function HomePage() {
+interface Props {
+  onLogin: () => void;
+}
+
+export default function HomePage({
+  onLogin,
+}: Props) {
   const features = [
     {
       title: 'Attendance Tracking',
@@ -37,22 +43,23 @@ export default function HomePage() {
             </div>
 
             <div>
-              <h1 className="text-xl font-bold">Wipe4You</h1>
+              <h1 className="text-xl font-bold">
+                Wipe4You
+              </h1>
+
               <p className="text-xs text-gray-400">
                 Guild Management Dashboard
               </p>
             </div>
           </div>
 
+          {/* FIXED LOGIN BUTTON */}
           <button
-  onClick={() =>
-    window.location.href =
-      '/login'
-  }
-  className="px-5 py-2.5 rounded-2xl bg-cyan-500 hover:bg-cyan-400 transition-all duration-300 text-black font-bold shadow-[0_0_30px_rgba(34,211,238,0.35)]"
->
-  Discord Login
-</button>
+            onClick={onLogin}
+            className="px-5 py-2.5 rounded-2xl bg-cyan-500 hover:bg-cyan-400 transition-all duration-300 text-black font-bold shadow-[0_0_30px_rgba(34,211,238,0.35)]"
+          >
+            Discord Login
+          </button>
         </div>
       </header>
 
@@ -79,7 +86,10 @@ export default function HomePage() {
             </p>
 
             <div className="flex flex-wrap gap-4">
-              <button className="px-7 py-4 rounded-2xl bg-cyan-500 hover:bg-cyan-400 transition-all duration-300 text-black font-bold shadow-[0_0_40px_rgba(34,211,238,0.35)] hover:scale-105">
+              <button
+                onClick={onLogin}
+                className="px-7 py-4 rounded-2xl bg-cyan-500 hover:bg-cyan-400 transition-all duration-300 text-black font-bold shadow-[0_0_40px_rgba(34,211,238,0.35)] hover:scale-105"
+              >
                 Enter Dashboard
               </button>
 
@@ -94,6 +104,7 @@ export default function HomePage() {
                 <div className="text-3xl font-black text-cyan-400">
                   24/7
                 </div>
+
                 <div className="text-gray-400 text-sm mt-1">
                   Live Tracking
                 </div>
@@ -103,6 +114,7 @@ export default function HomePage() {
                 <div className="text-3xl font-black text-purple-400">
                   Realtime
                 </div>
+
                 <div className="text-gray-400 text-sm mt-1">
                   DKP Updates
                 </div>
@@ -112,6 +124,7 @@ export default function HomePage() {
                 <div className="text-3xl font-black text-green-400">
                   Secure
                 </div>
+
                 <div className="text-gray-400 text-sm mt-1">
                   Discord Auth
                 </div>
@@ -129,6 +142,7 @@ export default function HomePage() {
                   <h3 className="text-xl font-bold">
                     Guild Overview
                   </h3>
+
                   <p className="text-gray-400 text-sm">
                     Live guild statistics
                   </p>
@@ -144,6 +158,7 @@ export default function HomePage() {
                   <div className="text-gray-400 text-sm mb-2">
                     Total Members
                   </div>
+
                   <div className="text-4xl font-black text-cyan-400">
                     142
                   </div>
@@ -153,6 +168,7 @@ export default function HomePage() {
                   <div className="text-gray-400 text-sm mb-2">
                     Active Events
                   </div>
+
                   <div className="text-4xl font-black text-purple-400">
                     12
                   </div>
@@ -165,6 +181,7 @@ export default function HomePage() {
                     <div className="font-semibold">
                       Sindri's Island
                     </div>
+
                     <div className="text-gray-400 text-sm">
                       Starts in 2 hours
                     </div>
@@ -180,6 +197,7 @@ export default function HomePage() {
                     <div className="font-semibold">
                       Server Battle
                     </div>
+
                     <div className="text-gray-400 text-sm">
                       Weekly competitive event
                     </div>
@@ -195,6 +213,7 @@ export default function HomePage() {
                     <div className="font-semibold">
                       Guild Dungeon
                     </div>
+
                     <div className="text-gray-400 text-sm">
                       Weekly progression run
                     </div>
@@ -209,67 +228,6 @@ export default function HomePage() {
           </div>
         </div>
       </section>
-
-      {/* Features */}
-      <section className="relative z-10 max-w-7xl mx-auto px-6 pb-24">
-        <div className="text-center mb-14">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-300 text-sm mb-4">
-            🚀 Features
-          </div>
-
-          <h2 className="text-4xl lg:text-5xl font-black mb-4">
-            Everything Your Guild Needs
-          </h2>
-
-          <p className="text-gray-400 max-w-2xl mx-auto text-lg">
-            Built specifically for MMORPG guilds that want professional-level
-            management and realtime systems.
-          </p>
-        </div>
-
-        <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-6">
-          {features.map((feature) => (
-            <div
-              key={feature.title}
-              className="group p-7 rounded-[28px] bg-white/5 border border-white/10 hover:border-cyan-500/30 hover:bg-cyan-500/5 transition-all duration-500 backdrop-blur-xl"
-            >
-              <div className="text-5xl mb-5 group-hover:scale-110 transition-transform duration-300">
-                {feature.icon}
-              </div>
-
-              <h3 className="text-xl font-bold mb-3">
-                {feature.title}
-              </h3>
-
-              <p className="text-gray-400 leading-relaxed text-sm">
-                {feature.desc}
-              </p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="relative z-10 border-t border-white/10 bg-black/40 backdrop-blur-xl">
-        <div className="max-w-7xl mx-auto px-6 py-8 flex flex-col md:flex-row justify-between items-center gap-4">
-          <div>
-            <div className="font-bold text-lg">
-              Wipe4You Dashboard
-            </div>
-            <div className="text-gray-500 text-sm mt-1">
-              Built for competitive guild management.
-            </div>
-          </div>
-
-          <div className="flex items-center gap-4 text-sm text-gray-500">
-            <span>Realtime DKP</span>
-            <span>•</span>
-            <span>Discord Auth</span>
-            <span>•</span>
-            <span>Live Auctions</span>
-          </div>
-        </div>
-      </footer>
     </div>
   );
 }
