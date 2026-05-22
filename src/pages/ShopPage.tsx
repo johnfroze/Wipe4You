@@ -294,20 +294,39 @@ export function ShopPage({
         .eq('id', item.id);
 
       // SAVE TRANSACTION
-      await supabase
+      const {
+        error: transactionError,
+      } = await supabase
         .from(
           'shop_transactions'
         )
         .insert({
           buyer_id:
             currentUser.member.id,
+
+          buyer_name:
+            currentUser.member
+              .username,
+
           item_id: item.id,
+
+          item_name: item.name,
+
           quantity: 1,
+
           total_price:
             item.price,
+
           distribution_status:
             'pending',
+
+          created_at:
+            new Date().toISOString(),
         });
+
+      if (transactionError) {
+        throw transactionError;
+      }
 
       await Promise.all([
         onDkpChange(),
