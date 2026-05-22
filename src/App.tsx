@@ -1,18 +1,32 @@
-import { useState, useEffect } from 'react';
-import { signInWithDiscord, signOut, supabase } from '@/lib/supabase';
-import { useAuth, useMembers } from '@/hooks/useAuth';
+import {
+  useState,
+  useEffect,
+} from 'react';
+
+import {
+  signInWithDiscord,
+  signOut,
+  supabase,
+} from '@/lib/supabase';
+
+import {
+  useAuth,
+  useMembers,
+} from '@/hooks/useAuth';
+
 import { AttendancePage } from '@/pages/AttendancePage';
 import { AuctionsPage } from '@/pages/AuctionsPage';
 import { AdminPage } from '@/pages/AdminPage';
 import { ShopPage } from '@/pages/ShopPage';
 import { ShopLogPage } from '@/pages/ShopLogPage';
 import { MyHistoryPage } from '@/pages/MyHistoryPage';
+
+// HOMEPAGE
 import HomePage from './pages/HomePage';
 
 import {
   Shield,
   LogOut,
-  LogIn,
   ShoppingBag,
   ScrollText,
   Package,
@@ -59,7 +73,7 @@ function App() {
     setAuctionNotifications,
   ] = useState(0);
 
-  // LIVE DKP STATE
+  // LIVE DKP
   const [liveDkp, setLiveDkp] =
     useState(0);
 
@@ -72,7 +86,7 @@ function App() {
     }
   }, [currentUser]);
 
-  // REALTIME DKP LISTENER
+  // REALTIME DKP
   useEffect(() => {
     if (!currentUser?.member?.id)
       return;
@@ -172,6 +186,7 @@ function App() {
       }
     };
 
+  // LOADING
   if (loading) {
     return (
       <div className="min-h-screen bg-[#070707] text-white flex items-center justify-center">
@@ -180,6 +195,18 @@ function App() {
     );
   }
 
+  // HOMEPAGE BEFORE LOGIN
+  if (!currentUser) {
+    return (
+      <HomePage
+        onLogin={
+          signInWithDiscord
+        }
+      />
+    );
+  }
+
+  // NAV ITEMS
   const navItems: {
     id: PageId;
     label: string;
@@ -233,7 +260,7 @@ function App() {
 
   return (
     <div className="min-h-screen bg-[#070707] text-white font-sans">
-      {/* NAV */}
+      {/* NAVBAR */}
       <nav className="border-b border-[#222] sticky top-0 z-40 bg-[#070707]/95 backdrop-blur-sm">
         <div className="max-w-7xl mx-auto px-4 py-3">
           <div className="flex justify-between items-center">
@@ -272,25 +299,38 @@ function App() {
                 (item) => (
                   <button
                     key={item.id}
-                  onClick={() => {
-  // FORCE PAGE REFRESH
-  if (page === item.id) {
-    window.location.reload();
-    return;
-  }
+                    onClick={() => {
+                      // REFRESH SAME PAGE
+                      if (
+                        page === item.id
+                      ) {
+                        window.location.reload();
 
-  setPage(item.id);
+                        return;
+                      }
 
-  // REFRESH ATTENDANCE PAGE
-  if (item.id === 'attendance') {
-    loadMembers();
-  }
+                      setPage(
+                        item.id
+                      );
 
-  // CLEAR AUCTION NOTIFICATIONS
-  if (item.id === 'auctions') {
-    setAuctionNotifications(0);
-  }
-}}
+                      // REFRESH ATTENDANCE
+                      if (
+                        item.id ===
+                        'attendance'
+                      ) {
+                        loadMembers();
+                      }
+
+                      // CLEAR AUCTION NOTIFICATIONS
+                      if (
+                        item.id ===
+                        'auctions'
+                      ) {
+                        setAuctionNotifications(
+                          0
+                        );
+                      }
+                    }}
                     className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all ${
                       page === item.id
                         ? 'bg-cyan-400/10 text-cyan-400 border border-cyan-400/20'
@@ -320,66 +360,46 @@ function App() {
 
             {/* USER */}
             <div className="flex items-center gap-3">
-              {!currentUser ? (
-                <button
-                  onClick={() =>
-                    signInWithDiscord()
+              <div className="hidden sm:flex flex-col items-end mr-1">
+                <span className="text-sm font-medium text-cyan-400">
+                  {liveDkp} DKP
+                </span>
+
+                <span className="text-xs text-gray-500 capitalize">
+                  {
+                    currentUser
+                      .member.role
                   }
-                  className="bg-[#5865F2] hover:bg-[#4752C4] text-white font-bold px-4 py-2.5 rounded-xl flex items-center gap-2 transition-all text-sm"
-                >
-                  <LogIn size={16} />
+                </span>
+              </div>
 
-                  <span className="hidden sm:inline">
-                    Discord Login
-                  </span>
-                </button>
-              ) : (
-                <div className="flex items-center gap-3">
-                  {currentUser.member && (
-                    <div className="hidden sm:flex flex-col items-end mr-1">
-                      <span className="text-sm font-medium text-cyan-400">
-                        {liveDkp} DKP
-                      </span>
+              <img
+                src={
+                  currentUser.user
+                    .user_metadata
+                    .avatar_url
+                }
+                alt=""
+                className="w-9 h-9 rounded-full border border-[#333]"
+              />
 
-                      <span className="text-xs text-gray-500 capitalize">
-                        {
-                          currentUser
-                            .member
-                            .role
-                        }
-                      </span>
-                    </div>
-                  )}
+              <span className="hidden md:block text-sm font-medium max-w-[120px] truncate">
+                {
+                  currentUser.user
+                    .user_metadata
+                    .full_name
+                }
+              </span>
 
-                  <img
-                    src={
-                      currentUser.user
-                        .user_metadata
-                        .avatar_url
-                    }
-                    alt=""
-                    className="w-9 h-9 rounded-full border border-[#333]"
-                  />
-
-                  <span className="hidden md:block text-sm font-medium max-w-[120px] truncate">
-                    {
-                      currentUser.user
-                        .user_metadata
-                        .full_name
-                    }
-                  </span>
-
-                  <button
-                    onClick={() =>
-                      signOut()
-                    }
-                    className="text-gray-400 hover:text-red-400 transition-colors p-2 hover:bg-red-400/10 rounded-xl"
-                    title="Logout"
-                  >
-                    <LogOut size={18} />
-                  </button>
-                </div>
-              )}
+              <button
+                onClick={() =>
+                  signOut()
+                }
+                className="text-gray-400 hover:text-red-400 transition-colors p-2 hover:bg-red-400/10 rounded-xl"
+                title="Logout"
+              >
+                <LogOut size={18} />
+              </button>
             </div>
           </div>
 
@@ -391,6 +411,15 @@ function App() {
                   <button
                     key={item.id}
                     onClick={() => {
+                      // REFRESH SAME PAGE
+                      if (
+                        page === item.id
+                      ) {
+                        window.location.reload();
+
+                        return;
+                      }
+
                       setPage(
                         item.id
                       );
@@ -399,6 +428,15 @@ function App() {
                         false
                       );
 
+                      // REFRESH ATTENDANCE
+                      if (
+                        item.id ===
+                        'attendance'
+                      ) {
+                        loadMembers();
+                      }
+
+                      // CLEAR AUCTION NOTIFICATIONS
                       if (
                         item.id ===
                         'auctions'
@@ -473,8 +511,7 @@ function App() {
           )}
 
         {page ===
-          'my-history' &&
-          currentUser && (
+          'my-history' && (
             <MyHistoryPage
               buyerId={
                 currentUser
