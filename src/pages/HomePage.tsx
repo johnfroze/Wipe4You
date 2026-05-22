@@ -44,9 +44,15 @@ export default function HomePage() {
             </div>
           </div>
 
-          <button className="px-5 py-2.5 rounded-2xl bg-cyan-500 hover:bg-cyan-400 transition-all duration-300 text-black font-bold shadow-[0_0_30px_rgba(34,211,238,0.35)]">
-            Discord Login
-          </button>
+          <button
+  onClick={() =>
+    window.location.href =
+      '/login'
+  }
+  className="px-5 py-2.5 rounded-2xl bg-cyan-500 hover:bg-cyan-400 transition-all duration-300 text-black font-bold shadow-[0_0_30px_rgba(34,211,238,0.35)]"
+>
+  Discord Login
+</button>
         </div>
       </header>
 
