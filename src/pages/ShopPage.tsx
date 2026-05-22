@@ -61,6 +61,9 @@ export function ShopPage({
   const [itemStock, setItemStock] =
     useState('');
 
+  const [itemImage, setItemImage] =
+    useState('');
+
   // TOAST
   const [toast, setToast] =
     useState<{
@@ -189,7 +192,7 @@ export function ShopPage({
     if (!currentUser) return;
 
     try {
-      // ALWAYS CHECK DATABASE
+      // CHECK SHOP STATUS
       const {
         data: settings,
         error: settingsError,
@@ -205,7 +208,6 @@ export function ShopPage({
         throw settingsError;
       }
 
-      // BLOCK PURCHASE
       if (
         !settings?.shop_enabled
       ) {
@@ -269,7 +271,7 @@ export function ShopPage({
         member.dkp -
         item.price;
 
-      // INSTANT UI
+      // UPDATE UI
       setLocalDkp(newDkp);
 
       // UPDATE DKP
@@ -292,7 +294,7 @@ export function ShopPage({
         })
         .eq('id', item.id);
 
-      // TRANSACTION
+      // SAVE TRANSACTION
       await supabase
         .from(
           'shop_transactions'
@@ -349,6 +351,7 @@ export function ShopPage({
         .from('shop_items')
         .insert({
           name: itemName,
+          image_url: itemImage,
           price:
             parseInt(
               itemPrice
@@ -374,6 +377,7 @@ export function ShopPage({
       setItemName('');
       setItemPrice('');
       setItemStock('');
+      setItemImage('');
 
       await loadItems();
 
@@ -436,99 +440,52 @@ export function ShopPage({
         </div>
 
         {isAdmin && (
-  <button
-    onClick={async () => {
-      try {
-        const newName = prompt(
-          'New item name',
-          item.name
-        );
+          <button
+            onClick={async () => {
+              try {
+                const newState =
+                  !shopEnabled;
 
-        if (!newName) return;
+                const {
+                  error,
+                } = await supabase
+                  .from(
+                    'shop_settings'
+                  )
+                  .update({
+                    shop_enabled:
+                      newState,
+                  })
+                  .gt('id', 0);
 
-        const newPrice = prompt(
-          'New price',
-          String(item.price)
-        );
+                if (error) {
+                  throw error;
+                }
 
-        if (!newPrice) return;
+                setShopEnabled(
+                  newState
+                );
 
-        const newStock = prompt(
-          'New stock',
-          String(item.current_stock)
-        );
+                showToast(
+                  newState
+                    ? 'Shop opened'
+                    : 'Shop closed',
+                  'success'
+                );
+              } catch (err) {
+                console.error(err);
 
-        if (!newStock) return;
-
-        const imageChoice = window.confirm(
-          'Do you want to change image URL?'
-        );
-
-        let newImage =
-          item.image_url || '';
-
-        if (imageChoice) {
-          const imageInput =
-            prompt(
-              'Paste image URL',
-              item.image_url || ''
-            );
-
-          if (imageInput !== null) {
-            newImage =
-              imageInput;
-          }
-        }
-
-        const {
-          error,
-        } = await supabase
-          .from('shop_items')
-          .update({
-            name: newName,
-            price:
-              parseInt(
-                newPrice
-              ),
-            current_stock:
-              parseInt(
-                newStock
-              ),
-            total_stock:
-              parseInt(
-                newStock
-              ),
-            image_url:
-              newImage,
-          })
-          .eq(
-            'id',
-            item.id
-          );
-
-        if (error)
-          throw error;
-
-        await loadItems();
-
-        showToast(
-          'Item updated',
-          'success'
-        );
-      } catch (err) {
-        console.error(err);
-
-        showToast(
-          'Failed updating item',
-          'error'
-        );
-      }
-    }}
-    className="px-4 rounded-xl bg-[#222] hover:bg-[#333]"
-  >
-    ✏️
-  </button>
-)}
+                showToast(
+                  'Failed updating shop',
+                  'error'
+                );
+              }
+            }}
+            className={`px-4 py-2 rounded-xl font-bold ${
+              shopEnabled
+                ? 'bg-red-500/20 text-red-400'
+                : 'bg-green-500/20 text-green-400'
+            }`}
           >
             {shopEnabled
               ? 'Close Shop'
@@ -551,7 +508,7 @@ export function ShopPage({
             Add Item
           </h2>
 
-          <div className="grid md:grid-cols-3 gap-3">
+          <div className="grid md:grid-cols-4 gap-3">
             <input
               value={itemName}
               onChange={(e) =>
@@ -584,6 +541,17 @@ export function ShopPage({
               }
               type="number"
               placeholder="Stock"
+              className="bg-black border border-[#333] rounded-xl p-3"
+            />
+
+            <input
+              value={itemImage}
+              onChange={(e) =>
+                setItemImage(
+                  e.target.value
+                )
+              }
+              placeholder="Image URL"
               className="bg-black border border-[#333] rounded-xl p-3"
             />
           </div>
@@ -654,33 +622,51 @@ export function ShopPage({
                 {isAdmin && (
                   <button
                     onClick={async () => {
-                      const newPrice =
-                        prompt(
-                          'New price',
-                          String(
-                            item.price
-                          )
-                        );
-
-                      if (
-                        !newPrice
-                      )
-                        return;
-
-                      const newStock =
-                        prompt(
-                          'New stock',
-                          String(
-                            item.current_stock
-                          )
-                        );
-
-                      if (
-                        !newStock
-                      )
-                        return;
-
                       try {
+                        const newName =
+                          prompt(
+                            'New item name',
+                            item.name
+                          );
+
+                        if (
+                          !newName
+                        )
+                          return;
+
+                        const newPrice =
+                          prompt(
+                            'New price',
+                            String(
+                              item.price
+                            )
+                          );
+
+                        if (
+                          !newPrice
+                        )
+                          return;
+
+                        const newStock =
+                          prompt(
+                            'New stock',
+                            String(
+                              item.current_stock
+                            )
+                          );
+
+                        if (
+                          !newStock
+                        )
+                          return;
+
+                        const newImage =
+                          prompt(
+                            'New image URL',
+                            item.image_url ||
+                              ''
+                          );
+
                         const {
                           error,
                         } = await supabase
@@ -688,6 +674,8 @@ export function ShopPage({
                             'shop_items'
                           )
                           .update({
+                            name:
+                              newName,
                             price:
                               parseInt(
                                 newPrice
@@ -700,6 +688,9 @@ export function ShopPage({
                               parseInt(
                                 newStock
                               ),
+                            image_url:
+                              newImage ||
+                              '',
                           })
                           .eq(
                             'id',
@@ -711,7 +702,7 @@ export function ShopPage({
                         )
                           throw error;
 
-                        loadItems();
+                        await loadItems();
 
                         showToast(
                           'Item updated',
