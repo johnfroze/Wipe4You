@@ -50,6 +50,15 @@ export function ShopPage({
       currentUser?.member.dkp || 0
     );
 
+  // SEARCH + FILTER
+  const [search, setSearch] =
+    useState('');
+
+  const [
+    showInStockOnly,
+    setShowInStockOnly,
+  ] = useState(false);
+
   // ADD ITEM
   const [itemName, setItemName] =
     useState('');
@@ -632,183 +641,233 @@ export function ShopPage({
         </div>
       )}
 
+      {/* SEARCH + FILTER */}
+      <div className="card p-4 space-y-3">
+        <input
+          type="text"
+          placeholder="Search items..."
+          value={search}
+          onChange={(e) =>
+            setSearch(
+              e.target.value
+            )
+          }
+          className="w-full bg-black border border-[#333] rounded-xl p-3 text-white outline-none focus:border-cyan-400"
+        />
+
+        <label className="flex items-center gap-2 text-sm text-gray-300">
+          <input
+            type="checkbox"
+            checked={
+              showInStockOnly
+            }
+            onChange={(e) =>
+              setShowInStockOnly(
+                e.target.checked
+              )
+            }
+          />
+
+          Show only items in stock
+        </label>
+      </div>
+
       {/* ITEMS */}
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-        {items.map((item) => (
-          <div
-            key={item.id}
-            className="card overflow-hidden"
-          >
-            <div className="h-48 bg-[#111] flex items-center justify-center overflow-hidden">
-              {item.image_url ? (
-                <img
-                  src={
-                    item.image_url
-                  }
-                  alt=""
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <Package
-                  size={64}
-                  className="text-gray-600"
-                />
-              )}
-            </div>
+        {items
+          .filter((item) => {
+            const matchesSearch =
+              item.name
+                .toLowerCase()
+                .includes(
+                  search.toLowerCase()
+                );
 
-            <div className="p-4">
-              <div className="font-bold text-lg">
-                {item.name}
-              </div>
+            const matchesStock =
+              !showInStockOnly ||
+              item.current_stock >
+                0;
 
-              <div className="text-cyan-400 font-bold text-xl mt-1">
-                {item.price} DKP
-              </div>
-
-              <div className="text-sm text-green-400 mt-1">
-                {
-                  item.current_stock
-                }{' '}
-                in stock
-              </div>
-
-              <div className="flex gap-2 mt-4">
-                <button
-                  onClick={() =>
-                    buyItem(item)
-                  }
-                  disabled={
-                    !shopEnabled
-                  }
-                  className="btn-primary flex-1"
-                >
-                  Buy
-                </button>
-
-                {isAdmin && (
-                  <>
-                    {/* EDIT */}
-                    <button
-                      onClick={async () => {
-                        try {
-                          const newName =
-                            prompt(
-                              'New item name',
-                              item.name
-                            );
-
-                          if (
-                            !newName
-                          )
-                            return;
-
-                          const newPrice =
-                            prompt(
-                              'New price',
-                              String(
-                                item.price
-                              )
-                            );
-
-                          if (
-                            !newPrice
-                          )
-                            return;
-
-                          const newStock =
-                            prompt(
-                              'New stock',
-                              String(
-                                item.current_stock
-                              )
-                            );
-
-                          if (
-                            !newStock
-                          )
-                            return;
-
-                          const newImage =
-                            prompt(
-                              'New image URL',
-                              item.image_url ||
-                                ''
-                            );
-
-                          const {
-                            error,
-                          } = await supabase
-                            .from(
-                              'shop_items'
-                            )
-                            .update({
-                              name:
-                                newName,
-                              price:
-                                parseInt(
-                                  newPrice
-                                ),
-                              current_stock:
-                                parseInt(
-                                  newStock
-                                ),
-                              total_stock:
-                                parseInt(
-                                  newStock
-                                ),
-                              image_url:
-                                newImage ||
-                                '',
-                            })
-                            .eq(
-                              'id',
-                              item.id
-                            );
-
-                          if (
-                            error
-                          )
-                            throw error;
-
-                          await loadItems();
-
-                          showToast(
-                            'Item updated',
-                            'success'
-                          );
-                        } catch (err) {
-                          console.error(
-                            err
-                          );
-
-                          showToast(
-                            'Failed updating item',
-                            'error'
-                          );
-                        }
-                      }}
-                      className="px-4 rounded-xl bg-[#222] hover:bg-[#333]"
-                    >
-                      ✏️
-                    </button>
-
-                    {/* DELETE */}
-                    <button
-                      onClick={() =>
-                        deleteItem(
-                          item
-                        )
-                      }
-                      className="px-4 rounded-xl bg-red-500/20 hover:bg-red-500/40 text-red-400"
-                    >
-                      🗑️
-                    </button>
-                  </>
+            return (
+              matchesSearch &&
+              matchesStock
+            );
+          })
+          .map((item) => (
+            <div
+              key={item.id}
+              className="card overflow-hidden"
+            >
+              <div className="h-48 bg-[#111] flex items-center justify-center overflow-hidden">
+                {item.image_url ? (
+                  <img
+                    src={
+                      item.image_url
+                    }
+                    alt=""
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <Package
+                    size={64}
+                    className="text-gray-600"
+                  />
                 )}
               </div>
+
+              <div className="p-4">
+                <div className="font-bold text-lg">
+                  {item.name}
+                </div>
+
+                <div className="text-cyan-400 font-bold text-xl mt-1">
+                  {item.price} DKP
+                </div>
+
+                <div className="text-sm text-green-400 mt-1">
+                  {
+                    item.current_stock
+                  }{' '}
+                  in stock
+                </div>
+
+                <div className="flex gap-2 mt-4">
+                  <button
+                    onClick={() =>
+                      buyItem(item)
+                    }
+                    disabled={
+                      !shopEnabled
+                    }
+                    className="btn-primary flex-1"
+                  >
+                    Buy
+                  </button>
+
+                  {isAdmin && (
+                    <>
+                      {/* EDIT */}
+                      <button
+                        onClick={async () => {
+                          try {
+                            const newName =
+                              prompt(
+                                'New item name',
+                                item.name
+                              );
+
+                            if (
+                              !newName
+                            )
+                              return;
+
+                            const newPrice =
+                              prompt(
+                                'New price',
+                                String(
+                                  item.price
+                                )
+                              );
+
+                            if (
+                              !newPrice
+                            )
+                              return;
+
+                            const newStock =
+                              prompt(
+                                'New stock',
+                                String(
+                                  item.current_stock
+                                )
+                              );
+
+                            if (
+                              !newStock
+                            )
+                              return;
+
+                            const newImage =
+                              prompt(
+                                'New image URL',
+                                item.image_url ||
+                                  ''
+                              );
+
+                            const {
+                              error,
+                            } = await supabase
+                              .from(
+                                'shop_items'
+                              )
+                              .update({
+                                name:
+                                  newName,
+                                price:
+                                  parseInt(
+                                    newPrice
+                                  ),
+                                current_stock:
+                                  parseInt(
+                                    newStock
+                                  ),
+                                total_stock:
+                                  parseInt(
+                                    newStock
+                                  ),
+                                image_url:
+                                  newImage ||
+                                  '',
+                              })
+                              .eq(
+                                'id',
+                                item.id
+                              );
+
+                            if (
+                              error
+                            )
+                              throw error;
+
+                            await loadItems();
+
+                            showToast(
+                              'Item updated',
+                              'success'
+                            );
+                          } catch (err) {
+                            console.error(
+                              err
+                            );
+
+                            showToast(
+                              'Failed updating item',
+                              'error'
+                            );
+                          }
+                        }}
+                        className="px-4 rounded-xl bg-[#222] hover:bg-[#333]"
+                      >
+                        ✏️
+                      </button>
+
+                      {/* DELETE */}
+                      <button
+                        onClick={() =>
+                          deleteItem(
+                            item
+                          )
+                        }
+                        className="px-4 rounded-xl bg-red-500/20 hover:bg-red-500/40 text-red-400"
+                      >
+                        🗑️
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
             </div>
-          </div>
-        ))}
+          ))}
       </div>
     </div>
   );
