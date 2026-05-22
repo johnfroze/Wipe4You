@@ -5,38 +5,16 @@ interface Props {
 export default function HomePage({
   onLogin,
 }: Props) {
-  const _features = [
-    {
-      title: 'Attendance Tracking',
-      desc: 'Track raids, guild events, and automatically reward DKP to active members.',
-      icon: '📅',
-    },
-    {
-      title: 'Live Auctions',
-      desc: 'Run real-time guild auctions with instant bid updates and countdown timers.',
-      icon: '⚔️',
-    },
-    {
-      title: 'DKP Shop',
-      desc: 'Spend DKP on guild rewards, items, and exclusive loot.',
-      icon: '🛒',
-    },
-    {
-      title: 'Guild Rankings',
-      desc: 'Compete on the leaderboard and show your dedication to the guild.',
-      icon: '👑',
-    },
-  ];
-
   return (
-    <div className="min-h-screen bg-black text-white overflow-hidden">
-      {/* Background */}
+    <div className="min-h-screen bg-black text-white overflow-hidden relative">
+      {/* Background Effects */}
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,#00d9ff22,transparent_45%)]" />
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_bottom,#8b5cf622,transparent_40%)]" />
 
       {/* Navbar */}
       <header className="relative z-10 border-b border-white/10 backdrop-blur-xl bg-black/40">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+          {/* Logo */}
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-cyan-500/20 border border-cyan-400/30 flex items-center justify-center text-cyan-400 text-xl">
               🛡️
@@ -53,7 +31,7 @@ export default function HomePage({
             </div>
           </div>
 
-          {/* FIXED LOGIN BUTTON */}
+          {/* Login */}
           <button
             onClick={onLogin}
             className="px-5 py-2.5 rounded-2xl bg-cyan-500 hover:bg-cyan-400 transition-all duration-300 text-black font-bold shadow-[0_0_30px_rgba(34,211,238,0.35)]"
@@ -66,7 +44,7 @@ export default function HomePage({
       {/* Hero */}
       <section className="relative z-10 max-w-7xl mx-auto px-6 pt-24 pb-20">
         <div className="grid lg:grid-cols-2 gap-16 items-center">
-          {/* Left */}
+          {/* LEFT */}
           <div>
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-300 text-sm mb-6">
               ⚡ Real-Time Guild Dashboard
@@ -80,11 +58,12 @@ export default function HomePage({
             </h1>
 
             <p className="text-gray-400 text-lg leading-relaxed max-w-xl mb-8">
-              Powerful DKP tracking, attendance management, auctions,
-              purchases, and live guild systems built for competitive MMORPG
-              communities.
+              Powerful DKP tracking, attendance management,
+              auctions, purchases, and live guild systems
+              built for competitive MMORPG communities.
             </p>
 
+            {/* Buttons */}
             <div className="flex flex-wrap gap-4">
               <button
                 onClick={onLogin}
@@ -132,7 +111,7 @@ export default function HomePage({
             </div>
           </div>
 
-          {/* Right */}
+          {/* RIGHT */}
           <div className="relative">
             <div className="absolute inset-0 blur-3xl bg-cyan-500/20 rounded-full" />
 
@@ -153,6 +132,7 @@ export default function HomePage({
                 </div>
               </div>
 
+              {/* Cards */}
               <div className="grid grid-cols-2 gap-4 mb-6">
                 <div className="p-5 rounded-2xl bg-black/40 border border-white/5">
                   <div className="text-gray-400 text-sm mb-2">
@@ -175,6 +155,7 @@ export default function HomePage({
                 </div>
               </div>
 
+              {/* Events */}
               <div className="space-y-4">
                 <div className="p-4 rounded-2xl bg-black/40 border border-white/5 flex items-center justify-between">
                   <div>
