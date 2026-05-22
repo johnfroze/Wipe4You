@@ -17,6 +17,7 @@ import type {
 import {
   ShoppingBag,
   Plus,
+  Package,
 } from 'lucide-react';
 
 interface Props {
@@ -40,9 +41,11 @@ export function ShopPage({
   const [loading, setLoading] =
     useState(true);
 
+  // SHOP STATUS
   const [shopEnabled, setShopEnabled] =
     useState(true);
 
+  // LIVE DKP
   const [localDkp, setLocalDkp] =
     useState(
       currentUser?.member.dkp || 0
