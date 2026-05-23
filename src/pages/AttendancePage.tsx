@@ -34,6 +34,7 @@ export function AttendancePage({
   members,
   onMembersChange,
 }: Props) {
+
   // =========================
   // ADMIN CHECK
   // =========================
@@ -193,9 +194,11 @@ export function AttendancePage({
 
   const recordAttendance =
     async () => {
+
       const checkedDkp =
         events.reduce(
           (sum, e, i) => {
+
             const cb =
               document.getElementById(
                 `event-${i}`
@@ -232,7 +235,9 @@ export function AttendancePage({
       }
 
       try {
+
         for (const name of names) {
+
           const member =
             members.find(
               (x) =>
@@ -245,6 +250,7 @@ export function AttendancePage({
           await supabase
             .from('members')
             .update({
+
               dkp:
                 member.dkp +
                 checkedDkp,
@@ -252,6 +258,7 @@ export function AttendancePage({
               attendance:
                 (member.attendance || 0) +
                 1,
+
             })
             .eq('id', member.id);
         }
@@ -265,7 +272,9 @@ export function AttendancePage({
         alert(
           `Attendance Recorded! +${checkedDkp} DKP awarded`
         );
+
       } catch (err) {
+
         console.error(err);
 
         alert('Attendance failed');
@@ -273,18 +282,21 @@ export function AttendancePage({
     };
 
   // =========================
-  // APPLY DKP DECAY
+  // APPLY DECAY
   // =========================
 
   const applyDecay =
     async () => {
+
       if (!decayConfirm) {
         setDecayConfirm(true);
         return;
       }
 
       try {
+
         for (const m of members) {
+
           const reduction =
             Math.floor(m.dkp * 0.1);
 
@@ -302,7 +314,9 @@ export function AttendancePage({
         setDecayConfirm(false);
 
         alert('10% Decay Applied');
+
       } catch (err) {
+
         console.error(err);
 
         alert('Decay failed');
@@ -315,6 +329,7 @@ export function AttendancePage({
 
   const resetAttendance =
     async () => {
+
       const confirmed =
         window.confirm(
           'Reset ALL attendance values to 0?'
@@ -323,7 +338,9 @@ export function AttendancePage({
       if (!confirmed) return;
 
       try {
+
         for (const m of members) {
+
           await supabase
             .from('members')
             .update({
@@ -337,7 +354,9 @@ export function AttendancePage({
         alert(
           'Attendance reset successfully'
         );
+
       } catch (err) {
+
         console.error(err);
 
         alert(
@@ -547,48 +566,42 @@ export function AttendancePage({
 
               {events.map((e, i) => (
 
-                <label
+                <div
                   key={e.id}
-                  className="flex items-center justify-between bg-black border border-[#222] rounded-xl p-3 cursor-pointer"
+                  className="flex items-center justify-between bg-black border border-[#222] rounded-xl p-3"
                 >
 
-                  <div>
-                    <div className="font-medium">
-                      {e.name}
-                    </div>
+                  <label className="flex items-center gap-3 cursor-pointer flex-1">
 
-                    <div className="text-cyan-400 text-sm">
-                      +{e.dkp} DKP
-                    </div>
-                  </div>
+                    <input
+                      id={`event-${i}`}
+                      type="checkbox"
+                      className="w-5 h-5"
+                    />
 
-                  <input
-                    id={`event-${i}`}
-                    type="checkbox"
-                    className="w-5 h-5"
-                  />
-                </label>
+                    <div>
+                      <div className="font-medium">
+                        {e.name}
+                      </div>
+
+                      <div className="text-cyan-400 text-sm">
+                        +{e.dkp} DKP
+                      </div>
+                    </div>
+                  </label>
+
+                  {isAdmin && (
+                    <button
+                      onClick={() =>
+                        removeEvent(e.id)
+                      }
+                      className="text-red-400 hover:text-red-300 p-2 transition-colors"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  )}
+                </div>
               ))}
-            </div>
-
-            {/* USERNAMES */}
-
-            <div className="space-y-3 mb-6">
-
-              <h3 className="font-bold">
-                Usernames
-              </h3>
-
-              <textarea
-                value={attendanceNames}
-                onChange={(e) =>
-                  setAttendanceNames(
-                    e.target.value
-                  )
-                }
-                placeholder="One username per line..."
-                className="w-full h-40 bg-black border border-[#333] rounded-2xl p-4 resize-none"
-              />
             </div>
 
             {/* ADD EVENT */}
@@ -629,10 +642,29 @@ export function AttendancePage({
                   className="btn-primary flex items-center gap-2"
                 >
                   <Plus size={16} />
-
                   Add
                 </button>
               </div>
+            </div>
+
+            {/* USERNAMES */}
+
+            <div className="space-y-3 mb-6">
+
+              <h3 className="font-bold">
+                Usernames
+              </h3>
+
+              <textarea
+                value={attendanceNames}
+                onChange={(e) =>
+                  setAttendanceNames(
+                    e.target.value
+                  )
+                }
+                placeholder="One username per line..."
+                className="w-full h-40 bg-black border border-[#333] rounded-2xl p-4 resize-none"
+              />
             </div>
 
             {/* SAVE */}
