@@ -71,6 +71,7 @@ export function AttendancePage({
 
   const loadEvents = async () => {
     try {
+
       const { data, error } =
         await supabase
           .from('attendance_events')
@@ -84,7 +85,9 @@ export function AttendancePage({
       }
 
       setEvents(data || []);
+
     } catch (err) {
+
       console.error(
         'Failed loading events:',
         err
@@ -97,6 +100,7 @@ export function AttendancePage({
   // =========================
 
   useEffect(() => {
+
     loadEvents();
 
     const channel = supabase
@@ -117,6 +121,7 @@ export function AttendancePage({
     return () => {
       supabase.removeChannel(channel);
     };
+
   }, []);
 
   // =========================
@@ -124,9 +129,12 @@ export function AttendancePage({
   // =========================
 
   const addEvent = async () => {
-    const name = newEventName.trim();
 
-    const dkp = parseInt(newEventDkp);
+    const name =
+      newEventName.trim();
+
+    const dkp =
+      parseInt(newEventDkp);
 
     if (!name || isNaN(dkp)) {
       alert('Fill all fields');
@@ -134,6 +142,7 @@ export function AttendancePage({
     }
 
     try {
+
       const { error } =
         await supabase
           .from('attendance_events')
@@ -150,41 +159,12 @@ export function AttendancePage({
       setNewEventDkp('');
 
       await loadEvents();
+
     } catch (err) {
+
       console.error(err);
 
       alert('Failed to add event');
-    }
-  };
-
-  // =========================
-  // REMOVE EVENT
-  // =========================
-
-  const removeEvent = async (
-    id: number
-  ) => {
-    const confirmed =
-      confirm('Delete this event?');
-
-    if (!confirmed) return;
-
-    try {
-      const { error } =
-        await supabase
-          .from('attendance_events')
-          .delete()
-          .eq('id', id);
-
-      if (error) {
-        throw error;
-      }
-
-      await loadEvents();
-    } catch (err) {
-      console.error(err);
-
-      alert('Failed to remove event');
     }
   };
 
@@ -206,13 +186,16 @@ export function AttendancePage({
 
             return (
               sum +
-              (cb?.checked ? e.dkp : 0)
+              (cb?.checked
+                ? e.dkp
+                : 0)
             );
           },
           0
         );
 
       if (checkedDkp === 0) {
+
         alert(
           'Select at least one event'
         );
@@ -223,10 +206,13 @@ export function AttendancePage({
       const names =
         attendanceNames
           .split('\n')
-          .map((n) => n.trim())
+          .map((n) =>
+            n.trim()
+          )
           .filter(Boolean);
 
       if (names.length === 0) {
+
         alert(
           'Enter at least one username'
         );
@@ -245,7 +231,8 @@ export function AttendancePage({
                 name.toLowerCase()
             );
 
-          if (!member) continue;
+          if (!member)
+            continue;
 
           await supabase
             .from('members')
@@ -260,7 +247,10 @@ export function AttendancePage({
                 1,
 
             })
-            .eq('id', member.id);
+            .eq(
+              'id',
+              member.id
+            );
         }
 
         await onMembersChange();
@@ -277,7 +267,9 @@ export function AttendancePage({
 
         console.error(err);
 
-        alert('Attendance failed');
+        alert(
+          'Attendance failed'
+        );
       }
     };
 
@@ -298,13 +290,16 @@ export function AttendancePage({
         for (const m of members) {
 
           const reduction =
-            Math.floor(m.dkp * 0.1);
+            Math.floor(
+              m.dkp * 0.1
+            );
 
           await updateMemberDkp(
             m.id,
             Math.max(
               0,
-              m.dkp - reduction
+              m.dkp -
+                reduction
             )
           );
         }
@@ -313,13 +308,17 @@ export function AttendancePage({
 
         setDecayConfirm(false);
 
-        alert('10% Decay Applied');
+        alert(
+          '10% Decay Applied'
+        );
 
       } catch (err) {
 
         console.error(err);
 
-        alert('Decay failed');
+        alert(
+          'Decay failed'
+        );
       }
     };
 
@@ -377,6 +376,7 @@ export function AttendancePage({
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
 
         <div>
+
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <Calendar
               className="text-cyan-400"
@@ -392,6 +392,7 @@ export function AttendancePage({
         </div>
 
         {isAdmin && (
+
           <div className="flex gap-2 flex-wrap">
 
             {/* ADD ATTENDANCE */}
@@ -443,6 +444,7 @@ export function AttendancePage({
       <div className="card p-5">
 
         <div className="flex items-center gap-2 mb-5">
+
           <Crown
             className="text-yellow-400"
             size={22}
@@ -491,6 +493,7 @@ export function AttendancePage({
                 />
 
                 <div>
+
                   <div className="font-medium">
                     {m.username}
                   </div>
@@ -515,6 +518,7 @@ export function AttendancePage({
               <div className="flex items-center gap-6">
 
                 <div className="text-right">
+
                   <div className="text-gray-500 text-xs">
                     Attendance
                   </div>
@@ -536,9 +540,12 @@ export function AttendancePage({
       {/* MODAL */}
 
       {showModal && (
+
         <div className="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50">
 
           <div className="bg-[#111] rounded-3xl p-6 w-full max-w-3xl max-h-[90vh] overflow-y-auto border border-[#222]">
+
+            {/* HEADER */}
 
             <div className="flex justify-between items-center mb-5">
 
@@ -580,6 +587,7 @@ export function AttendancePage({
                     />
 
                     <div>
+
                       <div className="font-medium">
                         {e.name}
                       </div>
@@ -590,11 +598,49 @@ export function AttendancePage({
                     </div>
                   </label>
 
+                  {/* DELETE EVENT */}
+
                   {isAdmin && (
+
                     <button
-                      onClick={() =>
-                        removeEvent(e.id)
-                      }
+                      onClick={async () => {
+
+                        const confirmed =
+                          confirm(
+                            'Delete this event?'
+                          );
+
+                        if (!confirmed)
+                          return;
+
+                        try {
+
+                          const { error } =
+                            await supabase
+                              .from(
+                                'attendance_events'
+                              )
+                              .delete()
+                              .eq(
+                                'id',
+                                e.id
+                              );
+
+                          if (error) {
+                            throw error;
+                          }
+
+                          await loadEvents();
+
+                        } catch (err) {
+
+                          console.error(err);
+
+                          alert(
+                            'Failed to remove event'
+                          );
+                        }
+                      }}
                       className="text-red-400 hover:text-red-300 p-2 transition-colors"
                     >
                       <Trash2 size={16} />
@@ -667,7 +713,7 @@ export function AttendancePage({
               />
             </div>
 
-            {/* SAVE */}
+            {/* FOOTER */}
 
             <div className="flex justify-end gap-3">
 
