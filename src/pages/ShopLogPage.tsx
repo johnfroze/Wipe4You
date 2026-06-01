@@ -1,27 +1,20 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { getShopTransactions, distributeTransaction, supabase } from '@/lib/supabase';
 import type { ShopTransaction } from '@/types';
-import {
-  ScrollText,
-  Search,
-  Filter,
-  Download,
-  PackageCheck,
-  Clock,
-  User,
-  ShoppingBag,
-  AlertTriangle,
-  CheckCircle2,
-} from 'lucide-react';
+import { ScrollText, Download } from 'lucide-react';
 
 export function ShopLogPage() {
   const [transactions, setTransactions] = useState<ShopTransaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState<number | null>(null);
+
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'distributed'>('all');
-  const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'price-high' | 'price-low'>('newest');
-  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  const [toast, setToast] = useState<{
+    message: string;
+    type: 'success' | 'error';
+  } | null>(null);
 
   const showToast = (message: string, type: 'success' | 'error') => {
     setToast({ message, type });
@@ -46,7 +39,15 @@ export function ShopLogPage() {
 
     const channel = supabase
       .channel('shop-log-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'shop_transactions' }, loadTransactions)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'shop_transactions',
+        },
+        loadTransactions
+      )
       .subscribe();
 
     return () => {
@@ -55,75 +56,175 @@ export function ShopLogPage() {
   }, [loadTransactions]);
 
   const handleDistribute = async (id: number) => {
-    if (!confirm('Mark this transaction as distributed?')) return;
+    const confirmed = window.confirm(
+      'Are you sure you want to mark this as distributed?'
+    );
+
+    if (!confirmed) return;
 
     try {
       setProcessingId(id);
+
       const { data } = await supabase.auth.getSession();
-      const username = data.session?.user?.user_metadata?.full_name || 'Admin';
+      const username =
+        data.session?.user?.user_metadata?.full_name || 'Admin';
+
       await distributeTransaction(id, username);
-      showToast('Item marked as distributed', 'success');
+
+      showToast('Transaction marked as distributed', 'success');
     } catch (err) {
       console.error(err);
-      showToast('Failed to update distribution status', 'error');
+      showToast('Failed to distribute transaction', 'error');
     } finally {
       setProcessingId(null);
     }
   };
 
   const filteredTransactions = useMemo(() => {
-    return transactions
-      .filter((t) => {
-        if (statusFilter !== 'all' && t.distribution_status !== statusFilter) return false;
-        const searchStr = search.toLowerCase();
-        return !search || (t.buyer?.username || '').toLowerCase().includes(searchStr) || (t.item?.name || '').toLowerCase().includes(searchStr);
-      })
-      .sort((a, b) => {
-        switch (sortBy) {
-          case 'oldest': return new Date(a.purchase_timestamp).getTime() - new Date(b.purchase_timestamp).getTime();
-          case 'price-high': return b.total_price - a.total_price;
-          case 'price-low': return a.total_price - b.total_price;
-          default: return new Date(b.purchase_timestamp).getTime() - new Date(a.purchase_timestamp).getTime();
-        }
-      });
-  }, [transactions, search, statusFilter, sortBy]);
+    return transactions.filter((t) => {
+      const matchesStatus =
+        statusFilter === 'all' ||
+        t.distribution_status === statusFilter;
 
-  const stats = useMemo(() => ({
-    pending: transactions.filter(t => t.distribution_status === 'pending').length,
-    distributed: transactions.filter(t => t.distribution_status === 'distributed').length,
-    revenue: transactions.reduce((sum, t) => sum + t.total_price, 0),
-  }), [transactions]);
+      const searchLower = search.toLowerCase();
+
+      const matchesSearch =
+        !search ||
+        (t.buyer?.username || '')
+          .toLowerCase()
+          .includes(searchLower) ||
+        (t.item?.name || '')
+          .toLowerCase()
+          .includes(searchLower);
+
+      return matchesStatus && matchesSearch;
+    });
+  }, [transactions, search, statusFilter]);
+
+  const stats = useMemo(() => {
+    const pending = transactions.filter(
+      (t) => t.distribution_status === 'pending'
+    ).length;
+
+    const distributed = transactions.filter(
+      (t) => t.distribution_status === 'distributed'
+    ).length;
+
+    const revenue = transactions.reduce(
+      (sum, t) => sum + t.total_price,
+      0
+    );
+
+    return {
+      pending,
+      distributed,
+      revenue,
+    };
+  }, [transactions]);
 
   const exportToCSV = () => {
-    const headers = ['Transaction ID','Buyer','Item','Quantity','Total DKP','Date','Status'];
-    const rows = filteredTransactions.map(t => [t.id,t.buyer?.username || 'Unknown',t.item?.name || 'Unknown',t.quantity,t.total_price,new Date(t.purchase_timestamp).toLocaleString(),t.distribution_status]);
-    const csv = [headers.join(','), ...rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(','))].join('\n');
+    const headers = [
+      'ID',
+      'Buyer',
+      'Item',
+      'Quantity',
+      'Total DKP',
+      'Status',
+      'Date',
+    ];
 
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const rows = filteredTransactions.map((t) => [
+      t.id,
+      t.buyer?.username || 'Unknown',
+      t.item?.name || 'Unknown',
+      t.quantity,
+      t.total_price,
+      t.distribution_status,
+      new Date(t.purchase_timestamp).toLocaleString(),
+    ]);
+
+    const csv = [
+      headers.join(','),
+      ...rows.map((row) =>
+        row
+          .map((cell) =>
+            `"${String(cell).replace(/"/g, '""')}"`
+          )
+          .join(',')
+      ),
+    ].join('\n');
+
+    const blob = new Blob([csv], {
+      type: 'text/csv;charset=utf-8;',
+    });
+
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `shop-log-${new Date().toISOString().split('T')[0]}.csv`;
+    link.download = `shop-log-${new Date()
+      .toISOString()
+      .split('T')[0]}.csv`;
+
     link.click();
+
     URL.revokeObjectURL(link.href);
+
     showToast('CSV exported successfully', 'success');
   };
 
   if (loading) {
-    return <div className="flex justify-center items-center h-64"><div className="animate-spin rounded-full h-10 w-10 border-t-2 border-cyan-400" /></div>;
+    return (
+      <div className="flex items-center justify-center h-64">
+        Loading...
+      </div>
+    );
   }
 
   return (
-    <div className="animate-fade-in space-y-6">
-      {toast && <div className={`toast ${toast.type === 'success' ? 'toast-success' : 'toast-error'}`}>{toast.message}</div>}
+    <div className="space-y-6">
+      {toast && (
+        <div
+          className={`p-3 rounded-xl ${
+            toast.type === 'success'
+              ? 'bg-green-600/20 text-green-400'
+              : 'bg-red-600/20 text-red-400'
+          }`}
+        >
+          {toast.message}
+        </div>
+      )}
 
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold flex items-center gap-2"><ScrollText className="text-cyan-400" /> Shop Log</h1>
-        <button onClick={exportToCSV} className="bg-[#222] px-4 py-2 rounded-xl flex items-center gap-2"><Download size={16}/> Export CSV</button>
+        <h1 className="text-2xl font-bold flex items-center gap-2">
+          <ScrollText className="text-cyan-400" />
+          Shop Log
+        </h1>
+
+        <button
+          onClick={exportToCSV}
+          className="bg-[#222] px-4 py-2 rounded-xl flex items-center gap-2"
+        >
+          <Download size={16} />
+          Export CSV
+        </button>
       </div>
 
       <div className="flex gap-3">
-        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search..." className="flex-1 p-2 rounded-xl bg-black border border-[#333]" />
-        <select value={statusFilter} onChange={e=>setStatusFilter(e.target.value as any)} className="p-2 rounded-xl bg-black border border-[#333]">
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search buyer or item..."
+          className="flex-1 p-2 rounded-xl bg-black border border-[#333]"
+        />
+
+        <select
+          value={statusFilter}
+          onChange={(e) =>
+            setStatusFilter(
+              e.target.value as 'all' | 'pending' | 'distributed'
+            )
+          }
+          className="p-2 rounded-xl bg-black border border-[#333]"
+        >
           <option value="all">All</option>
           <option value="pending">Pending</option>
           <option value="distributed">Distributed</option>
@@ -131,32 +232,88 @@ export function ShopLogPage() {
       </div>
 
       <div className="grid grid-cols-4 gap-3">
-        <div className="card p-4 text-center">{transactions.length}<div>Total</div></div>
-        <div className="card p-4 text-center">{stats.pending}<div>Pending</div></div>
-        <div className="card p-4 text-center">{stats.distributed}<div>Distributed</div></div>
-        <div className="card p-4 text-center">{stats.revenue} DKP<div>Revenue</div></div>
+        <div className="card p-4 text-center">
+          {transactions.length}
+          <div>Total Orders</div>
+        </div>
+
+        <div className="card p-4 text-center">
+          {stats.pending}
+          <div>Pending</div>
+        </div>
+
+        <div className="card p-4 text-center">
+          {stats.distributed}
+          <div>Distributed</div>
+        </div>
+
+        <div className="card p-4 text-center">
+          {stats.revenue} DKP
+          <div>Revenue</div>
+        </div>
       </div>
 
       <div className="card overflow-x-auto">
         <table className="w-full">
+          <thead>
+            <tr className="border-b border-[#222]">
+              <th className="p-4 text-left">Buyer</th>
+              <th className="p-4 text-left">Item</th>
+              <th className="p-4 text-left">Qty</th>
+              <th className="p-4 text-left">Total</th>
+              <th className="p-4 text-left">Status</th>
+              <th className="p-4 text-left">Action</th>
+            </tr>
+          </thead>
+
           <tbody>
-            {filteredTransactions.map(t => (
+            {filteredTransactions.map((t) => (
               <tr key={t.id} className="border-b border-[#222]">
-                <td className="p-4">{t.buyer?.username}</td>
-                <td className="p-4">{t.item?.name}</td>
-                <td className="p-4">{t.total_price} DKP</td>
-                <td className="p-4">{t.distribution_status}</td>
                 <td className="p-4">
-                  {t.distribution_status === 'pending' && (
-                    <button disabled={processingId===t.id} onClick={()=>handleDistribute(t.id)} className="bg-green-600/20 px-3 py-2 rounded-lg">
-                      {processingId===t.id ? 'Processing...' : 'Mark Distributed'}
+                  {t.buyer?.username || 'Unknown'}
+                </td>
+
+                <td className="p-4">
+                  {t.item?.name || 'Unknown'}
+                </td>
+
+                <td className="p-4">{t.quantity}</td>
+
+                <td className="p-4">
+                  {t.total_price} DKP
+                </td>
+
+                <td className="p-4">
+                  {t.distribution_status}
+                </td>
+
+                <td className="p-4">
+                  {t.distribution_status === 'pending' ? (
+                    <button
+                      onClick={() =>
+                        handleDistribute(t.id)
+                      }
+                      disabled={processingId === t.id}
+                      className="bg-green-600/20 px-3 py-2 rounded-lg"
+                    >
+                      {processingId === t.id
+                        ? 'Processing...'
+                        : 'Mark Distributed'}
                     </button>
+                  ) : (
+                    'Done'
                   )}
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
+
+        {filteredTransactions.length === 0 && (
+          <div className="p-6 text-center text-gray-500">
+            No transactions found
+          </div>
+        )}
       </div>
     </div>
   );
