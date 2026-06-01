@@ -18,6 +18,8 @@ import {
   Package,
   X,
   Loader2,
+  Trash2,
+  CheckCheck,
 } from 'lucide-react';
 
 interface BuyerAggregate {
@@ -35,11 +37,61 @@ interface BuyerAggregate {
   }[];
 }
 
+// ─── Confirmation Modal ───
+function ConfirmModal({
+  title,
+  message,
+  confirmLabel,
+  confirmClass,
+  onConfirm,
+  onCancel,
+  loading,
+}: {
+  title: string;
+  message: string;
+  confirmLabel: string;
+  confirmClass: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+  loading: boolean;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm animate-fade-in">
+      <div className="bg-[#111] border border-[#2a2a2a] rounded-2xl p-6 w-full max-w-sm shadow-2xl space-y-4">
+        <h3 className="text-base font-semibold">{title}</h3>
+        <p className="text-sm text-gray-400">{message}</p>
+        <div className="flex gap-3 justify-end">
+          <button
+            onClick={onCancel}
+            disabled={loading}
+            className="px-4 py-2 rounded-xl text-sm bg-[#222] hover:bg-[#333] text-gray-300 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={loading}
+            className={`px-4 py-2 rounded-xl text-sm flex items-center gap-2 transition-colors disabled:opacity-50 ${confirmClass}`}
+          >
+            {loading && <Loader2 size={14} className="animate-spin" />}
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function ShopLogPage() {
   const [transactions, setTransactions] = useState<ShopTransaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<number | null>(null);
+  const [bulkLoading, setBulkLoading] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
   const [showBuyerSummary, setShowBuyerSummary] = useState(false);
+
+  // Modal state
+  const [modal, setModal] = useState<'reset' | 'markAll' | null>(null);
 
   // Filters
   const [search, setSearch] = useState('');
@@ -82,7 +134,7 @@ export function ShopLogPage() {
     };
   }, [loadTransactions]);
 
-  // ─── Handle Distribution (with stock awareness) ───
+  // ─── Handle Single Distribution ───
   const handleDistribute = useCallback(
     async (id: number) => {
       try {
@@ -92,7 +144,7 @@ export function ShopLogPage() {
         await distributeTransaction(id, username);
         showToast('Item marked as distributed', 'success');
         await loadTransactions();
-      } catch (err) {
+      } catch {
         showToast('Failed to update distribution status', 'error');
       } finally {
         setActionLoading(null);
@@ -101,7 +153,48 @@ export function ShopLogPage() {
     [loadTransactions, showToast]
   );
 
-  // ─── Filtered & Sorted Transactions (memoized) ───
+  // ─── Mark All Pending as Distributed ───
+  const handleMarkAllDistributed = useCallback(async () => {
+    try {
+      setBulkLoading(true);
+      const { data } = await supabase.auth.getSession();
+      const username = data.session?.user?.user_metadata?.full_name || 'Admin';
+
+      const pending = transactions.filter((t) => t.distribution_status === 'pending');
+      await Promise.all(pending.map((t) => distributeTransaction(t.id, username)));
+
+      showToast(`${pending.length} transaction${pending.length !== 1 ? 's' : ''} marked as distributed`, 'success');
+      await loadTransactions();
+    } catch {
+      showToast('Failed to bulk distribute', 'error');
+    } finally {
+      setBulkLoading(false);
+      setModal(null);
+    }
+  }, [transactions, loadTransactions, showToast]);
+
+  // ─── Reset Shop Log ───
+  const handleResetShopLog = useCallback(async () => {
+    try {
+      setResetLoading(true);
+      const { error } = await supabase
+        .from('shop_transactions')
+        .delete()
+        .neq('id', 0); // deletes all rows
+
+      if (error) throw error;
+
+      showToast('Shop log has been reset', 'success');
+      await loadTransactions();
+    } catch {
+      showToast('Failed to reset shop log', 'error');
+    } finally {
+      setResetLoading(false);
+      setModal(null);
+    }
+  }, [loadTransactions, showToast]);
+
+  // ─── Filtered & Sorted Transactions ───
   const filteredTransactions = useMemo(() => {
     return transactions
       .filter((t) => {
@@ -117,22 +210,18 @@ export function ShopLogPage() {
       .sort((a, b) => {
         switch (sortBy) {
           case 'oldest':
-            return (
-              new Date(a.purchase_timestamp).getTime() - new Date(b.purchase_timestamp).getTime()
-            );
+            return new Date(a.purchase_timestamp).getTime() - new Date(b.purchase_timestamp).getTime();
           case 'price-high':
             return b.total_price - a.total_price;
           case 'price-low':
             return a.total_price - b.total_price;
           default:
-            return (
-              new Date(b.purchase_timestamp).getTime() - new Date(a.purchase_timestamp).getTime()
-            );
+            return new Date(b.purchase_timestamp).getTime() - new Date(a.purchase_timestamp).getTime();
         }
       });
   }, [transactions, statusFilter, search, sortBy]);
 
-  // ─── Buyer Aggregation (memoized) ───
+  // ─── Buyer Aggregation ───
   const buyerAggregates: BuyerAggregate[] = useMemo(() => {
     const map = new Map<string, BuyerAggregate>();
 
@@ -175,7 +264,7 @@ export function ShopLogPage() {
     return Array.from(map.values()).sort((a, b) => b.totalItems - a.totalItems);
   }, [transactions]);
 
-  // ─── Stats (memoized) ───
+  // ─── Stats ───
   const stats = useMemo(() => {
     const pending = transactions.filter((t) => t.distribution_status === 'pending');
     return {
@@ -187,20 +276,12 @@ export function ShopLogPage() {
     };
   }, [transactions]);
 
-  // ─── CSV Export (including buyer summary) ───
+  // ─── CSV Export ───
   const exportToCSV = useCallback(() => {
-    // Main transactions sheet
     const txHeaders = [
-      'Transaction ID',
-      'Buyer Name',
-      'Buyer Discord ID',
-      'Item Name',
-      'Quantity',
-      'Total DKP',
-      'Purchase Date',
-      'Distribution Status',
-      'Distributed By',
-      'Distributed At',
+      'Transaction ID', 'Buyer Name', 'Buyer Discord ID', 'Item Name',
+      'Quantity', 'Total DKP', 'Purchase Date', 'Distribution Status',
+      'Distributed By', 'Distributed At',
     ];
 
     const txRows = filteredTransactions.map((t) => [
@@ -216,14 +297,9 @@ export function ShopLogPage() {
       t.distributed_at ? new Date(t.distributed_at).toLocaleString() : '',
     ]);
 
-    // Buyer summary sheet
     const buyerHeaders = ['Buyer Name', 'Discord ID', 'Total Orders', 'Total Items', 'Total Spent (DKP)'];
     const buyerRows = buyerAggregates.map((b) => [
-      b.username,
-      b.discordId,
-      b.totalOrders,
-      b.totalItems,
-      b.totalSpent,
+      b.username, b.discordId, b.totalOrders, b.totalItems, b.totalSpent,
     ]);
 
     const csv = [
@@ -245,7 +321,6 @@ export function ShopLogPage() {
     showToast('CSV exported successfully', 'success');
   }, [filteredTransactions, buyerAggregates, showToast]);
 
-  // ─── Loading State ───
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -256,6 +331,31 @@ export function ShopLogPage() {
 
   return (
     <div className="animate-fade-in space-y-6">
+      {/* Confirmation Modals */}
+      {modal === 'markAll' && (
+        <ConfirmModal
+          title="Mark All as Distributed"
+          message={`This will mark all ${stats.pending} pending transaction${stats.pending !== 1 ? 's' : ''} as distributed. This cannot be undone.`}
+          confirmLabel="Mark All Distributed"
+          confirmClass="bg-green-600/20 hover:bg-green-600/30 text-green-400 border border-green-500/20"
+          onConfirm={handleMarkAllDistributed}
+          onCancel={() => setModal(null)}
+          loading={bulkLoading}
+        />
+      )}
+
+      {modal === 'reset' && (
+        <ConfirmModal
+          title="Reset Shop Log"
+          message="This will permanently delete all shop transactions. This action cannot be undone. Consider exporting a CSV first."
+          confirmLabel="Reset Shop Log"
+          confirmClass="bg-red-600/20 hover:bg-red-600/30 text-red-400 border border-red-500/20"
+          onConfirm={handleResetShopLog}
+          onCancel={() => setModal(null)}
+          loading={resetLoading}
+        />
+      )}
+
       {/* Toast */}
       {toast && (
         <div
@@ -287,7 +387,9 @@ export function ShopLogPage() {
             )}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Buyer Summary */}
           <button
             onClick={() => setShowBuyerSummary(!showBuyerSummary)}
             className={`px-4 py-2.5 rounded-xl flex items-center gap-2 transition-all text-sm ${
@@ -299,6 +401,23 @@ export function ShopLogPage() {
             <TrendingUp size={16} />
             Buyer Summary
           </button>
+
+          {/* Mark All Distributed */}
+          <button
+            onClick={() => setModal('markAll')}
+            disabled={stats.pending === 0 || bulkLoading}
+            className="bg-green-600/10 hover:bg-green-600/20 text-green-400 border border-green-500/20 disabled:opacity-40 disabled:cursor-not-allowed px-4 py-2.5 rounded-xl flex items-center gap-2 transition-all text-sm"
+          >
+            <CheckCheck size={16} />
+            Mark All Distributed
+            {stats.pending > 0 && (
+              <span className="bg-green-500/20 text-green-300 text-xs px-1.5 py-0.5 rounded-full">
+                {stats.pending}
+              </span>
+            )}
+          </button>
+
+          {/* Export CSV */}
           <button
             onClick={exportToCSV}
             className="bg-[#222] hover:bg-[#333] text-gray-300 px-4 py-2.5 rounded-xl flex items-center gap-2 transition-all text-sm"
@@ -306,10 +425,20 @@ export function ShopLogPage() {
             <Download size={16} />
             Export CSV
           </button>
+
+          {/* Reset Shop Log */}
+          <button
+            onClick={() => setModal('reset')}
+            disabled={transactions.length === 0 || resetLoading}
+            className="bg-red-600/10 hover:bg-red-600/20 text-red-400 border border-red-500/20 disabled:opacity-40 disabled:cursor-not-allowed px-4 py-2.5 rounded-xl flex items-center gap-2 transition-all text-sm"
+          >
+            <Trash2 size={16} />
+            Reset Log
+          </button>
         </div>
       </div>
 
-      {/* ─── Buyer Summary Panel ─── */}
+      {/* Buyer Summary Panel — unchanged */}
       {showBuyerSummary && (
         <div className="card overflow-hidden animate-fade-in">
           <div className="p-4 border-b border-[#222] flex items-center justify-between">
@@ -346,7 +475,7 @@ export function ShopLogPage() {
         </div>
       )}
 
-      {/* Filters */}
+      {/* Filters — unchanged */}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
@@ -384,7 +513,7 @@ export function ShopLogPage() {
         </div>
       </div>
 
-      {/* Stats */}
+      {/* Stats — unchanged */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         <div className="card p-4 text-center">
           <div className="text-2xl font-bold text-cyan-400">{stats.total}</div>
@@ -408,7 +537,7 @@ export function ShopLogPage() {
         </div>
       </div>
 
-      {/* Transactions Table */}
+      {/* Transactions Table — unchanged */}
       <div className="card overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -425,10 +554,7 @@ export function ShopLogPage() {
             </thead>
             <tbody>
               {filteredTransactions.map((t) => (
-                <tr
-                  key={t.id}
-                  className="border-b border-[#1a1a1a] hover:bg-[#0a0a0a] transition-colors"
-                >
+                <tr key={t.id} className="border-b border-[#1a1a1a] hover:bg-[#0a0a0a] transition-colors">
                   <td className="p-4">
                     <div className="flex items-center gap-2">
                       <div className="w-7 h-7 rounded-full bg-[#222] flex items-center justify-center">
@@ -493,9 +619,7 @@ export function ShopLogPage() {
                       </button>
                     ) : (
                       <span className="text-gray-600 text-xs">
-                        {t.distributed_at
-                          ? new Date(t.distributed_at).toLocaleDateString()
-                          : 'N/A'}
+                        {t.distributed_at ? new Date(t.distributed_at).toLocaleDateString() : 'N/A'}
                       </span>
                     )}
                   </td>
@@ -520,7 +644,7 @@ export function ShopLogPage() {
   );
 }
 
-// ─── Sub-component: Buyer Summary Row with Expandable Items ───
+// ─── BuyerSummaryRow — unchanged ───
 function BuyerSummaryRow({ buyer, rank }: { buyer: BuyerAggregate; rank: number }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -564,7 +688,6 @@ function BuyerSummaryRow({ buyer, rank }: { buyer: BuyerAggregate; rank: number 
         </td>
       </tr>
 
-      {/* Expanded items breakdown */}
       {expanded && (
         <tr>
           <td colSpan={6} className="p-0">
