@@ -6,7 +6,7 @@ import {
 import type { CurrentUser, Member, Auction } from '@/types';
 import {
   Gavel, Plus, Trash2, Timer, TrendingUp, X,
-  AlertTriangle, CheckCircle2, Package, Clock,
+  AlertTriangle, CheckCircle2,
   ChevronUp, Loader2, Zap,
 } from 'lucide-react';
 
@@ -345,7 +345,7 @@ export function AuctionsPage({ currentUser, members, onMembersChange }: Props) {
                                 </div>
                                 <div className="flex items-center gap-2">
                                   <span className="text-gray-600 text-[10px]">
-                                    {new Date(h.timestamp).toLocaleTimeString()}
+                                    {h.timestamp ? new Date(h.timestamp).toLocaleTimeString() : ''}
                                   </span>
                                   {isAdmin && (
                                     <button onClick={() => removeBidHistory(a.id, i)} className="text-red-500/60 hover:text-red-400">
