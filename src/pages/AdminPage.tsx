@@ -1,24 +1,10 @@
-import { useState } from 'react';
-
-import {
-  updateMemberDkp,
-  updateMemberRole,
-  updateMemberUsername,
-  deleteMember,
-} from '@/lib/supabase';
-
+import { useState, useCallback } from 'react';
+import { updateMemberDkp, updateMemberRole, updateMemberUsername, deleteMember } from '@/lib/supabase';
 import type { Member } from '@/types';
-
 import {
-  Shield,
-  Crown,
-  Star,
-  User,
-  Plus,
-  Minus,
-  Edit3,
-  Trash2,
-  Search,
+  Shield, Crown, Star, User, Plus, Minus,
+  Edit3, Trash2, Search, CheckCircle2,
+  AlertTriangle, X, Loader2, Check,
 } from 'lucide-react';
 
 interface Props {
@@ -26,489 +12,300 @@ interface Props {
   onMembersChange: () => void;
 }
 
-export function AdminPage({
-  members,
-  onMembersChange,
-}: Props) {
-  const [search, setSearch] =
-    useState('');
+function Toast({ message, type, onClose }: { message: string; type: 'success' | 'error'; onClose: () => void }) {
+  return (
+    <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-xl shadow-xl flex items-center gap-2 text-sm font-medium animate-slide-in-right
+      ${type === 'success' ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'}`}>
+      {type === 'success' ? <CheckCircle2 size={15} /> : <AlertTriangle size={15} />}
+      {message}
+      <button onClick={onClose} className="ml-1 hover:text-white"><X size={13} /></button>
+    </div>
+  );
+}
 
-  const [editingDkp, setEditingDkp] =
-    useState<
-      Record<string, boolean>
-    >({});
+function ConfirmModal({ title, message, confirmLabel, onConfirm, onCancel, loading = false }: {
+  title: string; message: string; confirmLabel: string;
+  onConfirm: () => void; onCancel: () => void; loading?: boolean;
+}) {
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm">
+      <div className="bg-[#0d1117] border border-[#1e2d3d] rounded-2xl p-6 w-full max-w-sm shadow-2xl space-y-4 animate-fade-in">
+        <h3 className="font-bold">{title}</h3>
+        <p className="text-sm text-gray-400">{message}</p>
+        <div className="flex gap-3 justify-end">
+          <button onClick={onCancel} disabled={loading}
+            className="px-4 py-2 rounded-xl text-sm bg-white/5 hover:bg-white/10 text-gray-300 transition-colors">Cancel</button>
+          <button onClick={onConfirm} disabled={loading}
+            className="px-4 py-2 rounded-xl text-sm bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 flex items-center gap-2 disabled:opacity-50 transition-colors">
+            {loading && <Loader2 size={13} className="animate-spin" />}
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
-  const [dkpInputs, setDkpInputs] =
-    useState<
-      Record<string, string>
-    >({});
+const ROLE_ORDER: Member['role'][] = ['member', 'elder', 'leader'];
 
-  // FILTER
-  const filtered = members.filter(
-    (m) =>
-      m.username
-        .toLowerCase()
-        .includes(
-          search.toLowerCase()
-        ) ||
-      m.role
-        .toLowerCase()
-        .includes(
-          search.toLowerCase()
-        )
+const roleConfig = {
+  leader: { icon: Crown, color: 'text-yellow-400', bg: 'bg-yellow-400/10 border-yellow-400/20', label: 'Leader' },
+  elder:  { icon: Star,  color: 'text-purple-400', bg: 'bg-purple-400/10 border-purple-400/20', label: 'Elder'  },
+  member: { icon: User,  color: 'text-gray-500',   bg: 'bg-gray-500/10 border-gray-500/20',    label: 'Member' },
+};
+
+export function AdminPage({ members, onMembersChange }: Props) {
+  const [search, setSearch] = useState('');
+  const [editingDkp, setEditingDkp] = useState<Record<string, boolean>>({});
+  const [dkpInputs, setDkpInputs] = useState<Record<string, string>>({});
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<Member | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  const showToast = useCallback((message: string, type: 'success' | 'error') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 4000);
+  }, []);
+
+  const filtered = members.filter((m) =>
+    m.username.toLowerCase().includes(search.toLowerCase()) ||
+    m.role.toLowerCase().includes(search.toLowerCase())
   );
 
-  // ADD DKP
-  const handleAddDkp =
-    async (
-      id: string,
-      current: number
-    ) => {
-      const amount = parseInt(
-        dkpInputs[id] || ''
-      );
+  const handleAddDkp = async (id: string, current: number) => {
+    const amount = parseInt(dkpInputs[id] || '');
+    if (isNaN(amount) || amount <= 0) { showToast('Enter a valid amount', 'error'); return; }
+    setActionLoading(id);
+    try {
+      await updateMemberDkp(id, current + amount);
+      setEditingDkp((p) => ({ ...p, [id]: false }));
+      setDkpInputs((p) => ({ ...p, [id]: '' }));
+      await onMembersChange();
+      showToast(`+${amount} DKP added`, 'success');
+    } catch { showToast('Failed to update DKP', 'error'); }
+    finally { setActionLoading(null); }
+  };
 
-      if (
-        isNaN(amount) ||
-        amount <= 0
-      )
-        return;
+  const handleRemoveDkp = async (id: string, current: number) => {
+    const amount = parseInt(dkpInputs[id] || '');
+    if (isNaN(amount) || amount <= 0) { showToast('Enter a valid amount', 'error'); return; }
+    setActionLoading(id);
+    try {
+      await updateMemberDkp(id, Math.max(0, current - amount));
+      setEditingDkp((p) => ({ ...p, [id]: false }));
+      setDkpInputs((p) => ({ ...p, [id]: '' }));
+      await onMembersChange();
+      showToast(`-${amount} DKP removed`, 'success');
+    } catch { showToast('Failed to update DKP', 'error'); }
+    finally { setActionLoading(null); }
+  };
 
-      try {
-        await updateMemberDkp(
-          id,
-          current + amount
-        );
+  const handleCycleRole = async (id: string, current: Member['role']) => {
+    const next = ROLE_ORDER[(ROLE_ORDER.indexOf(current) + 1) % ROLE_ORDER.length];
+    setActionLoading(`role-${id}`);
+    try {
+      await updateMemberRole(id, next);
+      await onMembersChange();
+      showToast(`Role changed to ${next}`, 'success');
+    } catch { showToast('Failed to change role', 'error'); }
+    finally { setActionLoading(null); }
+  };
 
-        setEditingDkp(
-          (prev) => ({
-            ...prev,
-            [id]: false,
-          })
-        );
+  const startRename = (m: Member) => {
+    setRenamingId(m.id);
+    setRenameValue(m.username);
+  };
 
-        setDkpInputs(
-          (prev) => ({
-            ...prev,
-            [id]: '',
-          })
-        );
+  const commitRename = async (id: string, original: string) => {
+    const name = renameValue.trim();
+    if (!name || name === original) { setRenamingId(null); return; }
+    setActionLoading(`rename-${id}`);
+    try {
+      await updateMemberUsername(id, name);
+      await onMembersChange();
+      showToast(`Renamed to "${name}"`, 'success');
+    } catch { showToast('Failed to rename', 'error'); }
+    finally { setActionLoading(null); setRenamingId(null); }
+  };
 
-        await onMembersChange();
-      } catch (err) {
-        console.error(err);
-      }
-    };
-
-  // REMOVE DKP
-  const handleRemoveDkp =
-    async (
-      id: string,
-      current: number
-    ) => {
-      const amount = parseInt(
-        dkpInputs[id] || ''
-      );
-
-      if (
-        isNaN(amount) ||
-        amount <= 0
-      )
-        return;
-
-      try {
-        await updateMemberDkp(
-          id,
-          Math.max(
-            0,
-            current - amount
-          )
-        );
-
-        setEditingDkp(
-          (prev) => ({
-            ...prev,
-            [id]: false,
-          })
-        );
-
-        setDkpInputs(
-          (prev) => ({
-            ...prev,
-            [id]: '',
-          })
-        );
-
-        await onMembersChange();
-      } catch (err) {
-        console.error(err);
-      }
-    };
-
-  // CHANGE ROLE
-  const handleChangeRole =
-    async (
-      id: string,
-      current: Member['role']
-    ) => {
-      try {
-        const roles: Member['role'][] =
-          [
-            'member',
-            'elder',
-            'leader',
-          ];
-
-        const idx =
-          roles.indexOf(current);
-
-        const next =
-          roles[
-            (idx + 1) %
-              roles.length
-          ];
-
-        await updateMemberRole(
-          id,
-          next
-        );
-
-        await onMembersChange();
-      } catch (err) {
-        console.error(err);
-      }
-    };
-
-  // RENAME USER
-  const handleRename =
-    async (
-      id: string,
-      current: string
-    ) => {
-      const name = prompt(
-        'New username:',
-        current
-      );
-
-      if (
-        !name ||
-        name.trim() === '' ||
-        name === current
-      )
-        return;
-
-      try {
-        // IMPORTANT FIX
-        await updateMemberUsername(
-          id,
-          name.trim()
-        );
-
-        await onMembersChange();
-      } catch (err) {
-        console.error(err);
-      }
-    };
-
-  // DELETE MEMBER
-  const handleDelete =
-    async (
-      id: string,
-      username: string
-    ) => {
-      const confirmed =
-        confirm(
-          `Delete member "${username}"?\n\nThis cannot be undone.`
-        );
-
-      if (!confirmed) return;
-
-      try {
-        await deleteMember(id);
-
-        await onMembersChange();
-      } catch (err) {
-        console.error(err);
-      }
-    };
-
-  // ROLE ICON
-  const roleIcon = (
-    role: Member['role']
-  ) => {
-    switch (role) {
-      case 'leader':
-        return (
-          <Crown
-            size={14}
-            className="text-yellow-400"
-          />
-        );
-
-      case 'elder':
-        return (
-          <Star
-            size={14}
-            className="text-purple-400"
-          />
-        );
-
-      default:
-        return (
-          <User
-            size={14}
-            className="text-gray-500"
-          />
-        );
-    }
+  const handleDelete = async () => {
+    if (!confirmDelete) return;
+    setActionLoading(`del-${confirmDelete.id}`);
+    try {
+      await deleteMember(confirmDelete.id);
+      await onMembersChange();
+      showToast(`${confirmDelete.username} removed`, 'success');
+    } catch { showToast('Failed to delete member', 'error'); }
+    finally { setActionLoading(null); setConfirmDelete(null); }
   };
 
   return (
     <div className="animate-fade-in space-y-6">
-      {/* HEADER */}
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+      {confirmDelete && (
+        <ConfirmModal
+          title={`Remove "${confirmDelete.username}"?`}
+          message="This will permanently delete the member and all their data. This cannot be undone."
+          confirmLabel="Delete Member"
+          onConfirm={handleDelete}
+          onCancel={() => setConfirmDelete(null)}
+          loading={!!actionLoading?.startsWith('del-')}
+        />
+      )}
+
+      {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Shield
-              className="text-cyan-400"
-              size={24}
-            />
-
+          <h1 className="text-2xl font-black flex items-center gap-2.5 tracking-tight">
+            <div className="w-8 h-8 rounded-lg bg-cyan-400/10 border border-cyan-400/20 flex items-center justify-center">
+              <Shield size={16} className="text-cyan-400" />
+            </div>
             Admin Panel
           </h1>
-
-          <p className="text-gray-500 text-sm mt-1">
-            Manage guild members
-            and DKP
-          </p>
+          <p className="text-gray-500 text-sm mt-1">Manage members, roles, and DKP</p>
         </div>
 
-        {/* SEARCH */}
         <div className="relative w-full sm:w-64">
-          <Search
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500"
-            size={16}
-          />
-
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-600" />
           <input
             value={search}
-            onChange={(e) =>
-              setSearch(
-                e.target.value
-              )
-            }
+            onChange={(e) => setSearch(e.target.value)}
             placeholder="Search members..."
-            className="w-full pl-10 pr-4 py-2.5 bg-black border border-[#333] rounded-xl text-sm"
+            className="w-full pl-9 pr-4 py-2.5 bg-black/60 border border-[#1e2d3d] rounded-xl text-sm focus:border-cyan-500/50 focus:outline-none"
           />
         </div>
       </div>
 
-      {/* MEMBERS */}
+      {/* Members list */}
       <div className="card p-5">
-        <div className="text-sm text-gray-500 mb-4">
-          {filtered.length} of{' '}
-          {members.length} members
+        <div className="flex items-center justify-between mb-4">
+          <span className="text-xs text-gray-600 uppercase tracking-widest font-bold">
+            {filtered.length} / {members.length} members
+          </span>
         </div>
 
-        <div className="space-y-3">
-          {filtered.map((m) => (
-            <div
-              key={m.id}
-              className="flex flex-col lg:flex-row lg:items-center justify-between p-4 rounded-xl bg-[#0a0a0a] border border-[#1a1a1a] hover:border-[#333] transition-colors gap-4"
-            >
-              {/* LEFT */}
-              <div className="flex items-center gap-4">
-                <img
-                  src={m.avatar}
-                  alt=""
-                  className="w-12 h-12 rounded-full border border-[#333]"
-                />
+        <div className="space-y-2">
+          {filtered.map((m) => {
+            const rc = roleConfig[m.role];
+            const RoleIcon = rc.icon;
+            const isEditingDkpThis = editingDkp[m.id];
+            const isRenamingThis = renamingId === m.id;
 
-                <div>
-                  {/* USERNAME */}
-                  <div className="font-medium flex items-center gap-2">
-                    {m.username}
+            return (
+              <div key={m.id}
+                className="flex flex-col lg:flex-row lg:items-center justify-between p-4 rounded-xl bg-black/40 border border-[#1a2234] hover:border-[#1e2d3d] transition-colors gap-4">
 
-                    <button
-                      onClick={() =>
-                        handleRename(
-                          m.id,
-                          m.username
-                        )
-                      }
-                      className="text-gray-600 hover:text-cyan-400 transition-colors"
-                      title="Rename"
-                    >
-                      <Edit3
-                        size={12}
-                      />
-                    </button>
+                {/* Left: avatar + info */}
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="relative shrink-0">
+                    <img src={m.avatar} alt="" className="w-11 h-11 rounded-full border-2 border-[#1e2d3d]" />
+                    <div className={`absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full border-2 border-[#0d1117] flex items-center justify-center ${rc.bg} border`}>
+                      <RoleIcon size={8} className={rc.color} />
+                    </div>
                   </div>
 
-                  {/* ROLE */}
-                  <button
-                    onClick={() =>
-                      handleChangeRole(
-                        m.id,
-                        m.role
-                      )
-                    }
-                    className="text-xs capitalize flex items-center gap-1 mt-0.5 hover:text-cyan-400 transition-colors"
-                  >
-                    {roleIcon(m.role)}
+                  <div className="min-w-0">
+                    {/* Username / rename input */}
+                    {isRenamingThis ? (
+                      <div className="flex items-center gap-2">
+                        <input
+                          value={renameValue}
+                          onChange={(e) => setRenameValue(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') commitRename(m.id, m.username);
+                            if (e.key === 'Escape') setRenamingId(null);
+                          }}
+                          className="bg-black border border-cyan-500/40 rounded-lg px-2 py-1 text-sm w-36 focus:outline-none"
+                          autoFocus
+                        />
+                        <button onClick={() => commitRename(m.id, m.username)}
+                          className="p-1 text-green-400 hover:text-green-300">
+                          {actionLoading === `rename-${m.id}` ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                        </button>
+                        <button onClick={() => setRenamingId(null)} className="p-1 text-gray-600 hover:text-white">
+                          <X size={14} />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-bold text-sm truncate">{m.username}</span>
+                        <button onClick={() => startRename(m)} className="text-gray-700 hover:text-cyan-400 transition-colors shrink-0">
+                          <Edit3 size={11} />
+                        </button>
+                      </div>
+                    )}
 
-                    <span
-                      className={
-                        m.role ===
-                        'leader'
-                          ? 'text-yellow-400'
-                          : m.role ===
-                              'elder'
-                            ? 'text-purple-400'
-                            : 'text-gray-500'
-                      }
+                    {/* Role badge + cycle */}
+                    <button
+                      onClick={() => handleCycleRole(m.id, m.role)}
+                      disabled={actionLoading === `role-${m.id}`}
+                      className={`inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-md border text-[10px] font-bold uppercase tracking-wide transition-all hover:opacity-80 ${rc.bg}`}
                     >
-                      {m.role}
-                    </span>
+                      {actionLoading === `role-${m.id}`
+                        ? <Loader2 size={9} className="animate-spin" />
+                        : <RoleIcon size={9} className={rc.color} />}
+                      <span className={rc.color}>{m.role}</span>
+                    </button>
+                  </div>
+                </div>
 
-                    <span className="text-gray-600 ml-1">
-                      (click to
-                      cycle)
-                    </span>
+                {/* Right: DKP + actions */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  {isEditingDkpThis ? (
+                    <div className="flex items-center gap-2">
+                      <input
+                        value={dkpInputs[m.id] || ''}
+                        onChange={(e) => setDkpInputs((p) => ({ ...p, [m.id]: e.target.value }))}
+                        onKeyDown={(e) => e.key === 'Enter' && handleAddDkp(m.id, m.dkp)}
+                        type="number"
+                        placeholder="Amount"
+                        className="w-24 bg-black border border-[#1e2d3d] rounded-lg px-3 py-2 text-sm focus:border-cyan-500/50 focus:outline-none"
+                        autoFocus
+                      />
+                      <button onClick={() => handleAddDkp(m.id, m.dkp)}
+                        disabled={actionLoading === m.id}
+                        className="p-2 rounded-lg bg-green-500/15 text-green-400 hover:bg-green-500/25 border border-green-500/20 transition-all"
+                        title="Add DKP">
+                        {actionLoading === m.id ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+                      </button>
+                      <button onClick={() => handleRemoveDkp(m.id, m.dkp)}
+                        disabled={actionLoading === m.id}
+                        className="p-2 rounded-lg bg-yellow-500/15 text-yellow-400 hover:bg-yellow-500/25 border border-yellow-500/20 transition-all"
+                        title="Remove DKP">
+                        <Minus size={14} />
+                      </button>
+                      <button onClick={() => setEditingDkp((p) => ({ ...p, [m.id]: false }))}
+                        className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-gray-500 hover:text-white transition-all">
+                        <X size={14} />
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="text-cyan-400 font-black hud-number tabular-nums text-sm px-3 py-1.5 rounded-xl bg-cyan-400/5 border border-cyan-400/15">
+                        {m.dkp.toLocaleString()} DKP
+                      </div>
+                      <button
+                        onClick={() => setEditingDkp((p) => ({ ...p, [m.id]: true }))}
+                        className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white text-xs font-bold uppercase tracking-wide transition-all border border-white/5"
+                      >
+                        <Edit3 size={12} /> DKP
+                      </button>
+                    </>
+                  )}
+
+                  <button
+                    onClick={() => setConfirmDelete(m)}
+                    className="p-2 rounded-xl bg-red-500/8 hover:bg-red-500/20 text-red-500/60 hover:text-red-400 border border-red-500/10 hover:border-red-500/25 transition-all"
+                    title="Delete member"
+                  >
+                    <Trash2 size={14} />
                   </button>
                 </div>
               </div>
-
-              {/* RIGHT */}
-              <div className="flex items-center gap-3 flex-wrap">
-                {editingDkp[
-                  m.id
-                ] ? (
-                  <div className="flex items-center gap-2">
-                    <input
-                      value={
-                        dkpInputs[
-                          m.id
-                        ] || ''
-                      }
-                      onChange={(
-                        e
-                      ) =>
-                        setDkpInputs(
-                          (
-                            prev
-                          ) => ({
-                            ...prev,
-                            [m.id]:
-                              e
-                                .target
-                                .value,
-                          })
-                        )
-                      }
-                      type="number"
-                      placeholder="Amount"
-                      className="w-24 bg-black border border-[#333] rounded-lg p-2 text-sm"
-                      autoFocus
-                    />
-
-                    {/* ADD */}
-                    <button
-                      onClick={() =>
-                        handleAddDkp(
-                          m.id,
-                          m.dkp
-                        )
-                      }
-                      className="bg-green-600/20 text-green-400 hover:bg-green-600/30 p-2 rounded-lg transition-all"
-                      title="Add DKP"
-                    >
-                      <Plus
-                        size={16}
-                      />
-                    </button>
-
-                    {/* REMOVE */}
-                    <button
-                      onClick={() =>
-                        handleRemoveDkp(
-                          m.id,
-                          m.dkp
-                        )
-                      }
-                      className="bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30 p-2 rounded-lg transition-all"
-                      title="Remove DKP"
-                    >
-                      <Minus
-                        size={16}
-                      />
-                    </button>
-
-                    {/* CANCEL */}
-                    <button
-                      onClick={() =>
-                        setEditingDkp(
-                          (
-                            prev
-                          ) => ({
-                            ...prev,
-                            [m.id]:
-                              false,
-                          })
-                        )
-                      }
-                      className="text-gray-500 hover:text-white p-2 transition-all"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                ) : (
-                  <>
-                    {/* DKP */}
-                    <div className="text-cyan-400 font-bold tabular-nums mr-2">
-                      {m.dkp} DKP
-                    </div>
-
-                    {/* EDIT DKP */}
-                    <button
-                      onClick={() =>
-                        setEditingDkp(
-                          (
-                            prev
-                          ) => ({
-                            ...prev,
-                            [m.id]:
-                              true,
-                          })
-                        )
-                      }
-                      className="bg-[#222] hover:bg-[#333] text-gray-300 px-3 py-2 rounded-xl text-sm transition-all flex items-center gap-1"
-                    >
-                      <Edit3
-                        size={14}
-                      />
-                      DKP
-                    </button>
-                  </>
-                )}
-
-                {/* DELETE */}
-                <button
-                  onClick={() =>
-                    handleDelete(
-                      m.id,
-                      m.username
-                    )
-                  }
-                  className="bg-red-600/20 text-red-400 hover:bg-red-600/30 px-3 py-2 rounded-xl text-sm transition-all flex items-center gap-1"
-                >
-                  <Trash2
-                    size={14}
-                  />
-                </button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>
