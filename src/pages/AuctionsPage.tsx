@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   supabase, getAuctions, createAuction,
   updateAuction, deleteAuction, uploadAuctionImage,
@@ -6,8 +6,9 @@ import {
 import type { CurrentUser, Member, Auction } from '@/types';
 import {
   Gavel, Plus, Trash2, Timer, TrendingUp, X,
-  AlertTriangle, CheckCircle2,
-  ChevronUp, Loader2, Zap,
+  AlertTriangle, CheckCircle2, ChevronUp, ChevronDown,
+  Loader2, Zap, Trophy, Users, Clock,
+  TimerReset, Eye, EyeOff, ShieldAlert,
 } from 'lucide-react';
 
 interface Props {
@@ -16,17 +17,29 @@ interface Props {
   onMembersChange: () => void;
 }
 
-function Toast({ message, type, onClose }: { message: string; type: 'success' | 'error'; onClose: () => void }) {
+// ─── Toast ────────────────────────────────────────────────
+function Toast({ message, type, onClose }: {
+  message: string; type: 'success' | 'error' | 'warning'; onClose: () => void;
+}) {
+  const styles = {
+    success: 'bg-green-500/10 text-green-400 border-green-500/20',
+    error:   'bg-red-500/10 text-red-400 border-red-500/20',
+    warning: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
+  };
+  const icons = {
+    success: <CheckCircle2 size={15} />,
+    error:   <AlertTriangle size={15} />,
+    warning: <AlertTriangle size={15} />,
+  };
   return (
-    <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-xl shadow-xl flex items-center gap-2 text-sm font-medium animate-slide-in-right
-      ${type === 'success' ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'}`}>
-      {type === 'success' ? <CheckCircle2 size={15} /> : <AlertTriangle size={15} />}
-      {message}
+    <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-xl shadow-xl flex items-center gap-2 text-sm font-medium animate-slide-in-right border ${styles[type]}`}>
+      {icons[type]}{message}
       <button onClick={onClose} className="ml-1 hover:text-white"><X size={13} /></button>
     </div>
   );
 }
 
+// ─── Confirm Modal ────────────────────────────────────────
 function ConfirmModal({ title, message, confirmLabel, confirmClass, onConfirm, onCancel, loading = false }: {
   title: string; message: string; confirmLabel: string; confirmClass?: string;
   onConfirm: () => void; onCancel: () => void; loading?: boolean;
@@ -52,18 +65,125 @@ function ConfirmModal({ title, message, confirmLabel, confirmClass, onConfirm, o
   );
 }
 
+// ─── Outbid Banner ────────────────────────────────────────
+function OutbidBanner({ username, auction }: { username: string; auction: Auction }) {
+  const myBids = auction.history.filter((h) => h.user === username);
+  if (myBids.length === 0) return null;
+  const isWinning = auction.highest_bidder === username;
+  if (isWinning) {
+    return (
+      <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-green-500/8 border border-green-500/20 text-green-400 text-xs font-bold">
+        <CheckCircle2 size={13} /> You are winning this auction!
+      </div>
+    );
+  }
+  return (
+    <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-red-500/10 border border-red-500/25 text-red-400 text-xs font-bold animate-pulse">
+      <AlertTriangle size={13} /> You've been outbid! — {auction.highest_bidder} is now leading
+    </div>
+  );
+}
+
+// ─── Quick Bid Buttons ────────────────────────────────────
+function QuickBidButtons({ minBid, currentInput, onSelect }: {
+  minBid: number; currentInput: string; onSelect: (val: string) => void;
+}) {
+  const presets = [
+    { label: 'Min', value: minBid },
+    { label: `+${minBid + 50}`, value: minBid + 50 },
+    { label: `+${minBid + 100}`, value: minBid + 100 },
+    { label: `+${minBid + 250}`, value: minBid + 250 },
+  ];
+  return (
+    <div className="flex gap-1.5 flex-wrap mb-2">
+      {presets.map((p) => (
+        <button
+          key={p.label}
+          onClick={() => onSelect(String(p.value))}
+          className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition-all ${
+            currentInput === String(p.value)
+              ? 'bg-cyan-500/20 border-cyan-500/40 text-cyan-400'
+              : 'bg-black/40 border-[#1e2d3d] text-gray-500 hover:text-gray-200 hover:border-[#2a3f55]'
+          }`}
+        >
+          {p.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// ─── Auction Stats ────────────────────────────────────────
+function AuctionStats({ auction }: { auction: Auction }) {
+  const uniqueBidders = new Set(auction.history.map((h) => h.user)).size;
+  return (
+    <div className="flex items-center gap-4 text-[11px] text-gray-600 border-t border-[#1a2234] pt-3 mt-3">
+      <span className="flex items-center gap-1">
+        <TrendingUp size={10} /> {auction.history.length} bid{auction.history.length !== 1 ? 's' : ''}
+      </span>
+      <span className="flex items-center gap-1">
+        <Users size={10} /> {uniqueBidders} bidder{uniqueBidders !== 1 ? 's' : ''}
+      </span>
+      {auction.created_at && (
+        <span className="flex items-center gap-1 ml-auto">
+          <Clock size={10} /> Started {new Date(auction.created_at).toLocaleDateString()}
+        </span>
+      )}
+    </div>
+  );
+}
+
+// ─── Winner Card ──────────────────────────────────────────
+function WinnerCard({ auction }: { auction: Auction }) {
+  const hasWinner = auction.highest_bidder && auction.highest_bidder !== 'None';
+  if (!hasWinner) {
+    return (
+      <div className="p-3 rounded-xl bg-black/40 border border-[#1e2d3d] text-center">
+        <p className="text-gray-500 text-sm">No bids were placed</p>
+      </div>
+    );
+  }
+  return (
+    <div className="p-4 rounded-xl bg-gradient-to-r from-yellow-500/8 to-orange-500/8 border border-yellow-500/20">
+      <div className="flex items-center gap-2 mb-2">
+        <Trophy size={16} className="text-yellow-400" />
+        <span className="text-yellow-400 text-xs font-black uppercase tracking-wider">Auction Won</span>
+      </div>
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="text-xs text-gray-500 mb-0.5">Winner</div>
+          <div className="font-black text-white">{auction.highest_bidder}</div>
+        </div>
+        <div className="text-right">
+          <div className="text-xs text-gray-500 mb-0.5">Final Price</div>
+          <div className="font-black text-yellow-400 hud-number tabular-nums">
+            {auction.current_bid.toLocaleString()} DKP
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Component ───────────────────────────────────────
 export function AuctionsPage({ currentUser, members, onMembersChange }: Props) {
   const isAdmin = currentUser?.member.role === 'leader' || currentUser?.member.role === 'elder';
+  const myUsername = currentUser?.member.username || '';
 
   const [auctions, setAuctions] = useState<Auction[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [bidInputs, setBidInputs] = useState<Record<number, string>>({});
   const [now, setNow] = useState(Date.now());
   const [bidLoading, setBidLoading] = useState<number | null>(null);
-  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [extendLoading, setExtendLoading] = useState<number | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'warning' } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [expandedHistory, setExpandedHistory] = useState<Set<number>>(new Set());
+  const [showEndedAuctions, setShowEndedAuctions] = useState(true);
+
+  // Track which auctions had anti-snipe triggered this session
+  const [antiSnipeTriggered, setAntiSnipeTriggered] = useState<Set<number>>(new Set());
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const processingRef = useRef(new Set<number>());
@@ -74,16 +194,16 @@ export function AuctionsPage({ currentUser, members, onMembersChange }: Props) {
   membersRef.current = members;
   onMembersChangeRef.current = onMembersChange;
 
-  // Form
+  // Form state
   const [itemName, setItemName] = useState('');
   const [startBid, setStartBid] = useState('');
   const [increment, setIncrement] = useState('1');
   const [minutes, setMinutes] = useState('60');
   const [uploading, setUploading] = useState(false);
 
-  const showToast = useCallback((message: string, type: 'success' | 'error') => {
+  const showToast = useCallback((message: string, type: 'success' | 'error' | 'warning' = 'success') => {
     setToast({ message, type });
-    setTimeout(() => setToast(null), 4000);
+    setTimeout(() => setToast(null), 4500);
   }, []);
 
   const loadAuctions = useCallback(async () => {
@@ -120,21 +240,75 @@ export function AuctionsPage({ currentUser, members, onMembersChange }: Props) {
           if (a.highest_bidder && a.highest_bidder !== 'None') {
             const winner = membersRef.current.find((m) => m.username === a.highest_bidder);
             if (winner) {
-              await supabase.from('members').update({ dkp: Math.max(0, winner.dkp - a.current_bid) }).eq('id', winner.id);
+              await supabase.from('members')
+                .update({ dkp: Math.max(0, winner.dkp - a.current_bid) })
+                .eq('id', winner.id);
               onMembersChangeRef.current();
             }
           }
           await loadAuctions();
-        } catch (err) {
-          console.error(err);
-        } finally {
-          processingRef.current.delete(a.id);
-        }
+        } catch (err) { console.error(err); }
+        finally { processingRef.current.delete(a.id); }
       }
     };
     checkEnded();
   }, [now, loadAuctions]);
 
+  // ── Place Bid ──
+  const placeBid = async (auctionId: number) => {
+    if (!currentUser?.member) { showToast('You must be logged in', 'error'); return; }
+    const auction = auctions.find((a) => a.id === auctionId);
+    if (!auction || auction.ended) { showToast('Auction has ended', 'error'); return; }
+    const bid = parseInt(bidInputs[auctionId] || '');
+    if (isNaN(bid)) { showToast('Enter a valid bid amount', 'error'); return; }
+    const minimum = auction.current_bid + auction.increment;
+    if (bid < minimum) { showToast(`Minimum bid is ${minimum.toLocaleString()} DKP`, 'error'); return; }
+    if (currentUser.member.dkp < bid) {
+      showToast(`Not enough DKP (you have ${currentUser.member.dkp.toLocaleString()})`, 'error'); return;
+    }
+
+    // Anti-snipe
+    let newEndTime = auction.end_time;
+    const remaining = auction.end_time - Date.now();
+    if (remaining < 30000) {
+      newEndTime = Date.now() + 30000;
+      setAntiSnipeTriggered((prev) => new Set(prev).add(auctionId));
+      showToast('⚡ Anti-snipe activated — 30 seconds added!', 'warning');
+    }
+
+    const newHistory = [
+      { user: currentUser.member.username, bid, timestamp: new Date().toISOString() },
+      ...auction.history,
+    ];
+
+    setBidLoading(auctionId);
+    try {
+      await updateAuction(auctionId, {
+        current_bid: bid,
+        highest_bidder: currentUser.member.username,
+        history: newHistory,
+        end_time: newEndTime,
+      });
+      setBidInputs((prev) => ({ ...prev, [auctionId]: '' }));
+      if (remaining >= 30000) showToast(`Bid of ${bid.toLocaleString()} DKP placed!`, 'success');
+    } catch { showToast('Bid failed — try again', 'error'); }
+    finally { setBidLoading(null); }
+  };
+
+  // ── Extend Time (admin) ──
+  const extendTime = async (auctionId: number) => {
+    const auction = auctions.find((a) => a.id === auctionId);
+    if (!auction) return;
+    setExtendLoading(auctionId);
+    try {
+      await updateAuction(auctionId, { end_time: auction.end_time + 15 * 60000 });
+      showToast('+15 minutes added to auction', 'success');
+      await loadAuctions();
+    } catch { showToast('Failed to extend time', 'error'); }
+    finally { setExtendLoading(null); }
+  };
+
+  // ── Create Auction ──
   const handleCreateAuction = async () => {
     const item = itemName.trim();
     if (!item) { showToast('Enter an item name', 'error'); return; }
@@ -158,33 +332,7 @@ export function AuctionsPage({ currentUser, members, onMembersChange }: Props) {
     } catch { showToast('Failed to create auction', 'error'); }
   };
 
-  const placeBid = async (auctionId: number) => {
-    if (!currentUser?.member) { showToast('You must be logged in', 'error'); return; }
-    const auction = auctions.find((a) => a.id === auctionId);
-    if (!auction || auction.ended) { showToast('Auction has ended', 'error'); return; }
-    const bid = parseInt(bidInputs[auctionId] || '');
-    if (isNaN(bid)) { showToast('Enter a valid bid amount', 'error'); return; }
-    const minimum = auction.current_bid + auction.increment;
-    if (bid < minimum) { showToast(`Minimum bid is ${minimum} DKP`, 'error'); return; }
-    if (currentUser.member.dkp < bid) { showToast('Not enough DKP', 'error'); return; }
-
-    let newEndTime = auction.end_time;
-    if (auction.end_time - Date.now() < 30000) newEndTime += 30000;
-
-    const newHistory = [
-      { user: currentUser.member.username, bid, timestamp: new Date().toISOString() },
-      ...auction.history,
-    ];
-
-    setBidLoading(auctionId);
-    try {
-      await updateAuction(auctionId, { current_bid: bid, highest_bidder: currentUser.member.username, history: newHistory, end_time: newEndTime });
-      setBidInputs((prev) => ({ ...prev, [auctionId]: '' }));
-      showToast(`Bid of ${bid} DKP placed!`, 'success');
-    } catch { showToast('Bid failed — try again', 'error'); }
-    finally { setBidLoading(null); }
-  };
-
+  // ── Delete Auction ──
   const handleDeleteAuction = async () => {
     if (!confirmDelete) return;
     setDeleteLoading(true);
@@ -196,6 +344,7 @@ export function AuctionsPage({ currentUser, members, onMembersChange }: Props) {
     finally { setDeleteLoading(false); setConfirmDelete(null); }
   };
 
+  // ── Remove bid from history ──
   const removeBidHistory = async (auctionId: number, index: number) => {
     const auction = auctions.find((a) => a.id === auctionId);
     if (!auction) return;
@@ -205,6 +354,7 @@ export function AuctionsPage({ currentUser, members, onMembersChange }: Props) {
     } catch { showToast('Failed to remove bid', 'error'); }
   };
 
+  // ── Helpers ──
   const getRemaining = (endTime: number) => Math.max(0, endTime - now);
 
   const formatTime = (ms: number) => {
@@ -212,7 +362,7 @@ export function AuctionsPage({ currentUser, members, onMembersChange }: Props) {
     const h = Math.floor(ms / 3600000);
     const m = Math.floor((ms % 3600000) / 60000);
     const s = Math.floor((ms % 60000) / 1000);
-    return h > 0 ? `${h}h ${m}m ${s}s` : `${m}m ${s}s`;
+    return h > 0 ? `${h}h ${m}m ${s}s` : m > 0 ? `${m}m ${s}s` : `${s}s`;
   };
 
   const getTimerClass = (ms: number) => {
@@ -230,16 +380,33 @@ export function AuctionsPage({ currentUser, members, onMembersChange }: Props) {
     });
   };
 
-  const activeAuctions = auctions.filter((a) => !a.ended && now < a.end_time);
-  const endedAuctions = auctions.filter((a) => a.ended || now >= a.end_time);
+  // ── Computed ──
+  const activeAuctions = useMemo(
+    () => auctions.filter((a) => !a.ended && now < a.end_time),
+    [auctions, now]
+  );
+  const endedAuctions = useMemo(
+    () => auctions.filter((a) => a.ended || now >= a.end_time),
+    [auctions, now]
+  );
 
+  // Auctions where the current user is participating but not winning
+  const myOutbidCount = useMemo(() => {
+    return activeAuctions.filter((a) => {
+      const hasBid = a.history.some((h) => h.user === myUsername);
+      const isWinning = a.highest_bidder === myUsername;
+      return hasBid && !isWinning;
+    }).length;
+  }, [activeAuctions, myUsername]);
+
+  // ─────────────────────────────────────────────────────────
   return (
     <div className="animate-fade-in space-y-6">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       {confirmDelete !== null && (
         <ConfirmModal
           title="Delete Auction"
-          message="This will permanently remove the auction and its bid history."
+          message="This will permanently remove the auction and all its bid history."
           confirmLabel="Delete"
           onConfirm={handleDeleteAuction}
           onCancel={() => setConfirmDelete(null)}
@@ -247,17 +414,22 @@ export function AuctionsPage({ currentUser, members, onMembersChange }: Props) {
         />
       )}
 
-      {/* Header */}
-      <div className="flex justify-between items-center">
+      {/* ── Header ── */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl font-black flex items-center gap-2.5 tracking-tight">
             <div className="w-8 h-8 rounded-lg bg-cyan-400/10 border border-cyan-400/20 flex items-center justify-center">
               <Gavel size={16} className="text-cyan-400" />
             </div>
             Auctions
+            {myOutbidCount > 0 && (
+              <span className="ml-1 px-2 py-0.5 rounded-full bg-red-500/20 border border-red-500/30 text-red-400 text-xs font-black animate-pulse">
+                {myOutbidCount} outbid
+              </span>
+            )}
           </h1>
           <p className="text-gray-500 text-sm mt-1">
-            {activeAuctions.length} active · {endedAuctions.length} ended
+            {activeAuctions.length} live · {endedAuctions.length} ended
           </p>
         </div>
         {isAdmin && (
@@ -267,89 +439,190 @@ export function AuctionsPage({ currentUser, members, onMembersChange }: Props) {
         )}
       </div>
 
-      {/* No auctions */}
+      {/* ── Empty ── */}
       {auctions.length === 0 && (
         <div className="card p-16 text-center">
           <Gavel size={48} className="mx-auto text-gray-700 mb-4" />
-          <p className="text-gray-500 font-medium">No auctions yet</p>
-          {isAdmin && <p className="text-gray-600 text-sm mt-1">Create the first auction above</p>}
+          <p className="text-gray-400 font-medium">No auctions running</p>
+          {isAdmin && <p className="text-gray-600 text-sm mt-1">Create the first auction to get started</p>}
         </div>
       )}
 
-      {/* Active auctions */}
+      {/* ── Active Auctions ── */}
       {activeAuctions.length > 0 && (
         <div>
-          <div className="flex items-center gap-2 mb-3">
+          <div className="flex items-center gap-2 mb-4">
             <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-            <span className="text-xs font-bold uppercase tracking-widest text-gray-500">Live</span>
+            <span className="text-xs font-black uppercase tracking-widest text-gray-400">
+              Live — {activeAuctions.length}
+            </span>
           </div>
+
           <div className="grid md:grid-cols-2 gap-5">
             {activeAuctions.map((a) => {
               const remaining = getRemaining(a.end_time);
               const isHistoryExpanded = expandedHistory.has(a.id);
               const minBid = a.current_bid + a.increment;
+              const iAmWinning = a.highest_bidder === myUsername;
+              const iHaveBid = a.history.some((h) => h.user === myUsername);
+              const iAmOutbid = iHaveBid && !iAmWinning;
+              const wasAntiSnipe = antiSnipeTriggered.has(a.id);
 
               return (
-                <div key={a.id} className="card overflow-hidden animate-border-pulse">
+                <div
+                  key={a.id}
+                  className={`card overflow-hidden transition-all ${
+                    iAmWinning
+                      ? 'border-green-500/30 shadow-[0_0_20px_#10b98110]'
+                      : iAmOutbid
+                      ? 'border-red-500/30 shadow-[0_0_20px_#ef444410]'
+                      : 'animate-border-pulse'
+                  }`}
+                >
+                  {/* Item image */}
                   {a.image && (
-                    <div className="h-52 bg-black overflow-hidden">
+                    <div className="h-52 bg-black overflow-hidden relative">
                       <img src={a.image} alt={a.item} className="w-full h-full object-contain" />
-                    </div>
-                  )}
-
-                  <div className="p-5">
-                    {/* Top */}
-                    <div className="flex items-start justify-between mb-4">
-                      <div>
-                        <h3 className="text-lg font-black tracking-tight">{a.item}</h3>
-                        <p className="text-gray-600 text-xs mt-0.5">Min increment: +{a.increment} DKP</p>
-                      </div>
-                      <div className={`flex items-center gap-1.5 text-sm font-bold px-3 py-1.5 rounded-xl bg-black/40 border border-[#1e2d3d] ${getTimerClass(remaining)}`}>
+                      {/* Timer overlay on image */}
+                      <div className={`absolute top-3 right-3 flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-black/70 backdrop-blur-sm border border-white/10 text-sm font-bold ${getTimerClass(remaining)}`}>
                         <Timer size={13} />
                         {formatTime(remaining)}
                       </div>
                     </div>
+                  )}
 
-                    {/* Bid */}
-                    <div className="flex items-center justify-between mb-4 p-3 rounded-xl bg-black/40 border border-[#1e2d3d]">
+                  <div className="p-5 space-y-4">
+                    {/* Title row */}
+                    <div className="flex items-start justify-between">
                       <div>
-                        <div className="text-xs text-gray-500 mb-0.5">Current Bid</div>
-                        <div className="text-2xl font-black text-cyan-400 hud-number tabular-nums text-glow-cyan">
+                        <h3 className="text-lg font-black tracking-tight">{a.item}</h3>
+                        <p className="text-gray-600 text-xs mt-0.5">
+                          Min increment: <span className="text-gray-400">+{a.increment} DKP</span>
+                        </p>
+                      </div>
+                      {/* Timer (only when no image) */}
+                      {!a.image && (
+                        <div className={`flex items-center gap-1.5 text-sm font-bold px-3 py-1.5 rounded-xl bg-black/40 border border-[#1e2d3d] ${getTimerClass(remaining)}`}>
+                          <Timer size={13} />
+                          {formatTime(remaining)}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Anti-snipe notice */}
+                    {wasAntiSnipe && (
+                      <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-yellow-500/8 border border-yellow-500/20 text-yellow-400 text-xs font-bold">
+                        <TimerReset size={13} /> Anti-snipe triggered — timer was extended
+                      </div>
+                    )}
+
+                    {/* Your status */}
+                    <OutbidBanner username={myUsername} auction={a} />
+
+                    {/* Current bid panel */}
+                    <div className="flex items-center justify-between p-3.5 rounded-xl bg-black/50 border border-[#1e2d3d]">
+                      <div>
+                        <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-0.5">Current Bid</div>
+                        <div className={`text-2xl font-black hud-number tabular-nums ${iAmWinning ? 'text-green-400 text-glow-green' : 'text-cyan-400 text-glow-cyan'}`}>
                           {a.current_bid.toLocaleString()} DKP
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="text-xs text-gray-500 mb-0.5">Highest Bidder</div>
-                        <div className="text-sm font-bold text-white">{a.highest_bidder || 'None'}</div>
+                        <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-0.5">Leading</div>
+                        <div className={`text-sm font-black ${iAmWinning ? 'text-green-400' : 'text-white'}`}>
+                          {a.highest_bidder === 'None' ? '—' : a.highest_bidder}
+                        </div>
+                        {a.highest_bidder === 'None' && (
+                          <div className="text-[10px] text-gray-600 mt-0.5">No bids yet</div>
+                        )}
                       </div>
                     </div>
 
-                    {/* History toggle */}
+                    {/* Quick-bid buttons */}
+                    <div>
+                      <div className="text-[10px] text-gray-600 uppercase tracking-wider mb-1.5">Quick Bid</div>
+                      <QuickBidButtons
+                        minBid={minBid}
+                        currentInput={bidInputs[a.id] || ''}
+                        onSelect={(val) => setBidInputs((prev) => ({ ...prev, [a.id]: val }))}
+                      />
+                    </div>
+
+                    {/* Custom bid input */}
+                    <div className="flex gap-2">
+                      <input
+                        type="number"
+                        value={bidInputs[a.id] || ''}
+                        onChange={(e) => setBidInputs((prev) => ({ ...prev, [a.id]: e.target.value }))}
+                        onKeyDown={(e) => e.key === 'Enter' && placeBid(a.id)}
+                        placeholder={`Custom amount (min ${minBid.toLocaleString()})`}
+                        className="flex-1 bg-black/60 border border-[#1e2d3d] rounded-xl px-3 py-2.5 text-sm focus:border-cyan-500/50 focus:outline-none"
+                      />
+                      <button
+                        onClick={() => placeBid(a.id)}
+                        disabled={bidLoading === a.id}
+                        className="btn-primary flex items-center gap-2 disabled:opacity-50 shrink-0"
+                      >
+                        {bidLoading === a.id
+                          ? <Loader2 size={14} className="animate-spin" />
+                          : <Zap size={14} />}
+                        Bid
+                      </button>
+                    </div>
+
+                    {/* Admin: extend time */}
+                    {isAdmin && (
+                      <button
+                        onClick={() => extendTime(a.id)}
+                        disabled={extendLoading === a.id}
+                        className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-blue-500/8 text-blue-400/80 hover:bg-blue-500/15 border border-blue-500/15 text-xs font-bold uppercase tracking-wide transition-all disabled:opacity-50"
+                      >
+                        {extendLoading === a.id
+                          ? <Loader2 size={12} className="animate-spin" />
+                          : <TimerReset size={12} />}
+                        +15 Min (Admin)
+                      </button>
+                    )}
+
+                    {/* Bid history toggle */}
                     {a.history.length > 0 && (
-                      <div className="mb-4">
+                      <div>
                         <button
                           onClick={() => toggleHistory(a.id)}
-                          className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-300 transition-colors mb-2"
+                          className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-300 transition-colors"
                         >
-                          {isHistoryExpanded ? <ChevronUp size={13} /> : <TrendingUp size={13} />}
-                          {a.history.length} bid{a.history.length !== 1 ? 's' : ''} history
+                          {isHistoryExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                          {a.history.length} bid{a.history.length !== 1 ? 's' : ''} — tap to {isHistoryExpanded ? 'hide' : 'view'}
                         </button>
+
                         {isHistoryExpanded && (
-                          <div className="space-y-1.5 max-h-36 overflow-y-auto animate-fade-in">
+                          <div className="mt-2 space-y-1.5 max-h-40 overflow-y-auto animate-fade-in pr-1">
                             {a.history.map((h, i) => (
-                              <div key={i} className="flex items-center justify-between bg-black/40 border border-[#1e2d3d] rounded-lg px-3 py-2 text-xs">
+                              <div key={i}
+                                className={`flex items-center justify-between rounded-lg px-3 py-2 text-xs border transition-colors ${
+                                  h.user === myUsername
+                                    ? 'bg-cyan-500/5 border-cyan-500/20'
+                                    : 'bg-black/40 border-[#1e2d3d]'
+                                }`}
+                              >
                                 <div className="flex items-center gap-2">
-                                  <TrendingUp size={11} className="text-cyan-400" />
-                                  <span className="text-gray-300">{h.user}</span>
-                                  <span className="text-cyan-400 font-bold tabular-nums">{h.bid.toLocaleString()} DKP</span>
+                                  <TrendingUp size={11} className="text-cyan-400 shrink-0" />
+                                  <span className={h.user === myUsername ? 'text-cyan-300 font-bold' : 'text-gray-300'}>
+                                    {h.user}
+                                    {h.user === myUsername && <span className="text-cyan-600 ml-1">(you)</span>}
+                                  </span>
+                                  <span className="text-cyan-400 font-bold tabular-nums">
+                                    {h.bid.toLocaleString()} DKP
+                                  </span>
                                 </div>
-                                <div className="flex items-center gap-2">
-                                  <span className="text-gray-600 text-[10px]">
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <span className="text-gray-700 text-[10px]">
                                     {h.timestamp ? new Date(h.timestamp).toLocaleTimeString() : ''}
                                   </span>
                                   {isAdmin && (
-                                    <button onClick={() => removeBidHistory(a.id, i)} className="text-red-500/60 hover:text-red-400">
-                                      <X size={12} />
+                                    <button onClick={() => removeBidHistory(a.id, i)}
+                                      className="text-red-500/40 hover:text-red-400 transition-colors">
+                                      <X size={11} />
                                     </button>
                                   )}
                                 </div>
@@ -360,25 +633,7 @@ export function AuctionsPage({ currentUser, members, onMembersChange }: Props) {
                       </div>
                     )}
 
-                    {/* Bid input */}
-                    <div className="flex gap-2">
-                      <input
-                        type="number"
-                        value={bidInputs[a.id] || ''}
-                        onChange={(e) => setBidInputs((prev) => ({ ...prev, [a.id]: e.target.value }))}
-                        onKeyDown={(e) => e.key === 'Enter' && placeBid(a.id)}
-                        placeholder={`Min ${minBid.toLocaleString()} DKP`}
-                        className="flex-1 bg-black/60 border border-[#1e2d3d] rounded-xl p-3 text-sm focus:border-cyan-500/50 focus:outline-none"
-                      />
-                      <button
-                        onClick={() => placeBid(a.id)}
-                        disabled={bidLoading === a.id}
-                        className="btn-primary flex items-center gap-2 disabled:opacity-50"
-                      >
-                        {bidLoading === a.id ? <Loader2 size={14} className="animate-spin" /> : <Zap size={14} />}
-                        Bid
-                      </button>
-                    </div>
+                    <AuctionStats auction={a} />
                   </div>
                 </div>
               );
@@ -387,54 +642,60 @@ export function AuctionsPage({ currentUser, members, onMembersChange }: Props) {
         </div>
       )}
 
-      {/* Ended auctions */}
+      {/* ── Ended Auctions ── */}
       {endedAuctions.length > 0 && (
         <div>
-          <div className="flex items-center gap-2 mb-3">
+          <button
+            onClick={() => setShowEndedAuctions((v) => !v)}
+            className="flex items-center gap-2 mb-4 group"
+          >
             <span className="w-2 h-2 rounded-full bg-gray-600" />
-            <span className="text-xs font-bold uppercase tracking-widest text-gray-600">Ended</span>
-          </div>
-          <div className="grid md:grid-cols-2 gap-5">
-            {endedAuctions.map((a) => (
-              <div key={a.id} className="card opacity-70 overflow-hidden">
-                {a.image && (
-                  <div className="h-40 bg-black overflow-hidden grayscale">
-                    <img src={a.image} alt={a.item} className="w-full h-full object-contain" />
-                  </div>
-                )}
-                <div className="p-5">
-                  <div className="flex items-start justify-between mb-3">
-                    <h3 className="font-black text-base">{a.item}</h3>
-                    <span className="px-2.5 py-1 rounded-full bg-red-500/10 text-red-500 text-[10px] font-black uppercase border border-red-500/20">
-                      Ended
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between p-3 rounded-xl bg-black/40 border border-[#1e2d3d] mb-3">
-                    <div>
-                      <div className="text-[10px] text-gray-600 mb-0.5">Final Bid</div>
-                      <div className="text-lg font-black text-gray-400 hud-number">{a.current_bid.toLocaleString()} DKP</div>
+            <span className="text-xs font-black uppercase tracking-widest text-gray-600 group-hover:text-gray-400 transition-colors">
+              Ended — {endedAuctions.length}
+            </span>
+            {showEndedAuctions
+              ? <EyeOff size={12} className="text-gray-700 group-hover:text-gray-500 transition-colors" />
+              : <Eye size={12} className="text-gray-700 group-hover:text-gray-500 transition-colors" />}
+          </button>
+
+          {showEndedAuctions && (
+            <div className="grid md:grid-cols-2 gap-4">
+              {endedAuctions.map((a) => (
+                <div key={a.id} className="card opacity-65 overflow-hidden hover:opacity-80 transition-opacity">
+                  {a.image && (
+                    <div className="h-36 bg-black overflow-hidden grayscale">
+                      <img src={a.image} alt={a.item} className="w-full h-full object-contain" />
                     </div>
-                    <div className="text-right">
-                      <div className="text-[10px] text-gray-600 mb-0.5">Winner</div>
-                      <div className="text-sm font-bold text-gray-300">{a.highest_bidder || 'No bids'}</div>
-                    </div>
-                  </div>
-                  {isAdmin && (
-                    <button
-                      onClick={() => setConfirmDelete(a.id)}
-                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-red-500/8 text-red-500/80 hover:bg-red-500/15 border border-red-500/15 text-xs font-bold uppercase tracking-wide transition-all"
-                    >
-                      <Trash2 size={13} /> Delete Auction
-                    </button>
                   )}
+                  <div className="p-4 space-y-3">
+                    <div className="flex items-start justify-between">
+                      <h3 className="font-black text-sm">{a.item}</h3>
+                      <span className="px-2 py-0.5 rounded-full bg-gray-500/10 text-gray-500 text-[10px] font-black uppercase border border-gray-500/15">
+                        Ended
+                      </span>
+                    </div>
+
+                    <WinnerCard auction={a} />
+
+                    <AuctionStats auction={a} />
+
+                    {isAdmin && (
+                      <button
+                        onClick={() => setConfirmDelete(a.id)}
+                        className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl bg-red-500/6 text-red-500/60 hover:bg-red-500/12 border border-red-500/12 text-xs font-bold uppercase tracking-wide transition-all"
+                      >
+                        <Trash2 size={12} /> Delete
+                      </button>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
-      {/* Create Modal */}
+      {/* ── Create Auction Modal ── */}
       {showModal && (
         <div className="fixed inset-0 modal-overlay flex items-center justify-center p-4 z-50">
           <div className="bg-[#0d1117] rounded-2xl p-6 w-full max-w-lg border border-[#1e2d3d] animate-fade-in">
@@ -448,27 +709,69 @@ export function AuctionsPage({ currentUser, members, onMembersChange }: Props) {
             </div>
 
             <div className="space-y-3">
-              {[
-                { value: itemName, set: setItemName, placeholder: 'Item name', type: 'text' },
-                { value: startBid, set: setStartBid, placeholder: 'Starting bid (DKP)', type: 'number' },
-                { value: increment, set: setIncrement, placeholder: 'Minimum increment (DKP)', type: 'number' },
-                { value: minutes, set: setMinutes, placeholder: 'Duration (minutes)', type: 'number' },
-              ].map((f) => (
-                <input
-                  key={f.placeholder}
-                  value={f.value}
-                  onChange={(e) => f.set(e.target.value)}
-                  type={f.type}
-                  placeholder={f.placeholder}
-                  className="w-full bg-black/60 border border-[#1e2d3d] rounded-xl p-3 text-sm focus:border-cyan-500/50 focus:outline-none"
-                />
-              ))}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                className="w-full bg-black/60 border border-[#1e2d3d] rounded-xl p-3 text-sm text-gray-500"
-              />
+              <div>
+                <label className="text-xs text-gray-500 uppercase tracking-wider mb-1.5 block">Item Name</label>
+                <input value={itemName} onChange={(e) => setItemName(e.target.value)}
+                  placeholder="e.g. Dragon Sword +8"
+                  className="w-full bg-black/60 border border-[#1e2d3d] rounded-xl p-3 text-sm focus:border-cyan-500/50 focus:outline-none" />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-gray-500 uppercase tracking-wider mb-1.5 block">Starting Bid</label>
+                  <input value={startBid} onChange={(e) => setStartBid(e.target.value)}
+                    type="number" placeholder="0 DKP"
+                    className="w-full bg-black/60 border border-[#1e2d3d] rounded-xl p-3 text-sm focus:border-cyan-500/50 focus:outline-none" />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 uppercase tracking-wider mb-1.5 block">Min Increment</label>
+                  <input value={increment} onChange={(e) => setIncrement(e.target.value)}
+                    type="number" placeholder="1 DKP"
+                    className="w-full bg-black/60 border border-[#1e2d3d] rounded-xl p-3 text-sm focus:border-cyan-500/50 focus:outline-none" />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs text-gray-500 uppercase tracking-wider mb-1.5 block">Duration</label>
+                <div className="flex gap-2 flex-wrap mb-2">
+                  {[15, 30, 60, 120, 240].map((m) => (
+                    <button key={m} onClick={() => setMinutes(String(m))}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${
+                        minutes === String(m)
+                          ? 'bg-cyan-500/20 border-cyan-500/40 text-cyan-400'
+                          : 'bg-black/40 border-[#1e2d3d] text-gray-500 hover:text-gray-300'
+                      }`}>
+                      {m >= 60 ? `${m / 60}h` : `${m}m`}
+                    </button>
+                  ))}
+                </div>
+                <input value={minutes} onChange={(e) => setMinutes(e.target.value)}
+                  type="number" placeholder="Custom minutes"
+                  className="w-full bg-black/60 border border-[#1e2d3d] rounded-xl p-3 text-sm focus:border-cyan-500/50 focus:outline-none" />
+              </div>
+
+              <div>
+                <label className="text-xs text-gray-500 uppercase tracking-wider mb-1.5 block">Item Image (optional)</label>
+                <input ref={fileInputRef} type="file" accept="image/*"
+                  className="w-full bg-black/60 border border-[#1e2d3d] rounded-xl p-3 text-sm text-gray-500" />
+              </div>
+
+              {/* Preview summary */}
+              {itemName && (
+                <div className="p-3 rounded-xl bg-cyan-500/5 border border-cyan-500/15 text-xs text-gray-400 space-y-1">
+                  <div className="flex justify-between">
+                    <span>Item</span><span className="text-white font-bold">{itemName}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Starting bid</span><span className="text-cyan-400 font-bold">{parseInt(startBid) || 0} DKP</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Duration</span><span className="text-white font-bold">
+                      {parseInt(minutes) >= 60 ? `${Math.floor(parseInt(minutes) / 60)}h ${parseInt(minutes) % 60 > 0 ? `${parseInt(minutes) % 60}m` : ''}` : `${minutes}m`}
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="flex gap-3 mt-5">
@@ -478,7 +781,9 @@ export function AuctionsPage({ currentUser, members, onMembersChange }: Props) {
               </button>
               <button onClick={handleCreateAuction} disabled={uploading}
                 className="flex-1 btn-primary flex items-center justify-center gap-2 disabled:opacity-50">
-                {uploading ? <><Loader2 size={14} className="animate-spin" /> Uploading...</> : <><Gavel size={14} /> Create Auction</>}
+                {uploading
+                  ? <><Loader2 size={14} className="animate-spin" /> Uploading...</>
+                  : <><Gavel size={14} /> Create Auction</>}
               </button>
             </div>
           </div>
