@@ -35,14 +35,6 @@ interface BuyerAggregate {
   }[];
 }
 
-interface StockCheckResult {
-  itemId: number;
-  itemName: string;
-  requestedQty: number;
-  availableStock: number;
-  canPurchase: boolean;
-}
-
 export function ShopLogPage() {
   const [transactions, setTransactions] = useState<ShopTransaction[]>([]);
   const [loading, setLoading] = useState(true);
@@ -89,64 +81,6 @@ export function ShopLogPage() {
       supabase.removeChannel(channel);
     };
   }, [loadTransactions]);
-
-  // ─── Stock Validation ───
-  const checkStockAvailability = useCallback(
-    async (itemId: number, requestedQuantity: number): Promise<StockCheckResult> => {
-      try {
-        const { data: itemData, error } = await supabase
-          .from('shop_items')
-          .select('id, name, stock_quantity, unlimited')
-          .eq('id', itemId)
-          .single();
-
-        if (error || !itemData) {
-          return {
-            itemId,
-            itemName: 'Unknown',
-            requestedQty: requestedQuantity,
-            availableStock: 0,
-            canPurchase: false,
-          };
-        }
-
-        // Unlimited items bypass stock check
-        if (itemData.unlimited) {
-          return {
-            itemId,
-            itemName: itemData.name,
-            requestedQty: requestedQuantity,
-            availableStock: Infinity,
-            canPurchase: true,
-          };
-        }
-
-        // Calculate how many of this item are already pending (reserved)
-        const pendingQty = transactions
-          .filter((t) => t.item_id === itemId && t.distribution_status === 'pending')
-          .reduce((sum, t) => sum + t.quantity, 0);
-
-        const effectiveStock = Math.max(0, (itemData.stock_quantity || 0) - pendingQty);
-
-        return {
-          itemId,
-          itemName: itemData.name,
-          requestedQty: requestedQuantity,
-          availableStock: effectiveStock,
-          canPurchase: requestedQuantity <= effectiveStock,
-        };
-      } catch {
-        return {
-          itemId,
-          itemName: 'Unknown',
-          requestedQty: requestedQuantity,
-          availableStock: 0,
-          canPurchase: false,
-        };
-      }
-    },
-    [transactions]
-  );
 
   // ─── Handle Distribution (with stock awareness) ───
   const handleDistribute = useCallback(
