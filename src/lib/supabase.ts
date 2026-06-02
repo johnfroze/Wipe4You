@@ -190,10 +190,7 @@ export async function createAuction(
       history: [],
     });
 
-  if (error) {
-    console.error(error);
-    throw error;
-  }
+  if (error) throw error;
 }
 
 export async function updateAuction(
@@ -324,14 +321,7 @@ export async function getShopItems(): Promise<
       ascending: false,
     });
 
-  if (error) {
-    console.error(
-      'GET SHOP ITEMS ERROR:',
-      error
-    );
-
-    throw error;
-  }
+  if (error) throw error;
 
   return data || [];
 }
@@ -354,29 +344,12 @@ export async function createShopItem(
       item.created_by || 'Unknown',
   };
 
-  console.log(
-    'INSERTING SHOP ITEM:',
-    payload
-  );
-
   const { data, error } = await supabase
     .from('shop_items')
     .insert(payload)
     .select();
 
-  if (error) {
-    console.error(
-      'SHOP INSERT ERROR:',
-      error
-    );
-
-    throw error;
-  }
-
-  console.log(
-    'SHOP INSERT SUCCESS:',
-    data
-  );
+  if (error) throw error;
 
   return data;
 }
@@ -490,4 +463,75 @@ export async function deleteTransaction(
     .eq('id', id);
 
   if (error) throw error;
+}
+
+// =========================
+// AUCTION — ATOMIC END (race-condition safe)
+// =========================
+// Call this instead of manually setting ended=true in the client.
+// The Postgres function uses FOR UPDATE row locking so only one
+// caller can process the winner, even if multiple tabs fire at once.
+//
+// Run this SQL in Supabase once:
+//
+// create or replace function end_auction(p_auction_id bigint)
+// returns text language plpgsql security definer as $$
+// declare
+//   v_auction auctions%rowtype;
+//   v_winner  members%rowtype;
+// begin
+//   select * into v_auction from auctions
+//     where id = p_auction_id for update;
+//
+//   if v_auction.ended then
+//     return 'already_ended';
+//   end if;
+//
+//   update auctions set ended = true where id = p_auction_id;
+//
+//   if v_auction.highest_bidder is null
+//     or v_auction.highest_bidder = 'None' then
+//     return 'no_winner';
+//   end if;
+//
+//   select * into v_winner from members
+//     where username = v_auction.highest_bidder for update;
+//
+//   if not found then
+//     return 'winner_not_found';
+//   end if;
+//
+//   update members
+//     set dkp = greatest(0, dkp - v_auction.current_bid)
+//     where id = v_winner.id;
+//
+//   return 'ok';
+// end;
+// $$;
+
+export async function endAuctionAtomic(auctionId: number): Promise<string> {
+  const { data, error } = await supabase.rpc('end_auction', {
+    p_auction_id: auctionId,
+  });
+  if (error) throw error;
+  return data as string;
+}
+
+// =========================
+// REALTIME — MEMBERS SUBSCRIPTION
+// =========================
+// Subscribes to all member row changes and calls the callback.
+// Returns an unsubscribe function. Use in App.tsx to keep the
+// members list fresh without polling.
+export function subscribeMembersRealtime(onUpdate: () => void) {
+  const channel = supabase
+    .channel('members-global-realtime')
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'members' },
+      () => onUpdate()
+    )
+    .subscribe();
+
+  return () => supabase.removeChannel(channel);
 }
