@@ -1,15 +1,17 @@
 import { useState, useCallback } from 'react';
-import { updateMemberDkp, updateMemberRole, updateMemberUsername, deleteMember } from '@/lib/supabase';
-import type { Member } from '@/types';
+import { updateMemberDkp, updateMemberRole, updateMemberUsername, deleteMember, createDkpLog } from '@/lib/supabase';
+import type { Member, CurrentUser } from '@/types';
+import { MemberProfileModal } from './MemberProfileModal';
 import {
   Shield, Crown, Star, User, Plus, Minus,
   Edit3, Trash2, Search, CheckCircle2,
-  AlertTriangle, X, Loader2, Check,
+  AlertTriangle, X, Loader2, Check, ExternalLink,
 } from 'lucide-react';
 
 interface Props {
   members: Member[];
   onMembersChange: () => void;
+  currentUser?: CurrentUser | null;
 }
 
 function Toast({ message, type, onClose }: { message: string; type: 'success' | 'error'; onClose: () => void }) {
@@ -54,15 +56,19 @@ const roleConfig = {
   member: { icon: User,  color: 'text-gray-500',   bg: 'bg-gray-500/10 border-gray-500/20',    label: 'Member' },
 };
 
-export function AdminPage({ members, onMembersChange }: Props) {
+export function AdminPage({ members, onMembersChange, currentUser }: Props) {
   const [search, setSearch] = useState('');
   const [editingDkp, setEditingDkp] = useState<Record<string, boolean>>({});
   const [dkpInputs, setDkpInputs] = useState<Record<string, string>>({});
+  const [reasonInputs, setReasonInputs] = useState<Record<string, string>>({});
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<Member | null>(null);
+  const [profileMember, setProfileMember] = useState<Member | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  const adminName = currentUser?.member.username || 'Admin';
 
   const showToast = useCallback((message: string, type: 'success' | 'error') => {
     setToast({ message, type });
@@ -77,11 +83,22 @@ export function AdminPage({ members, onMembersChange }: Props) {
   const handleAddDkp = async (id: string, current: number) => {
     const amount = parseInt(dkpInputs[id] || '');
     if (isNaN(amount) || amount <= 0) { showToast('Enter a valid amount', 'error'); return; }
+    const reason = reasonInputs[id]?.trim() || 'Manual adjustment';
     setActionLoading(id);
     try {
       await updateMemberDkp(id, current + amount);
+      await createDkpLog({
+        member_id: id,
+        member_name: members.find((m) => m.id === id)?.username || '',
+        amount,
+        reason,
+        admin_name: adminName,
+        dkp_before: current,
+        dkp_after: current + amount,
+      });
       setEditingDkp((p) => ({ ...p, [id]: false }));
       setDkpInputs((p) => ({ ...p, [id]: '' }));
+      setReasonInputs((p) => ({ ...p, [id]: '' }));
       await onMembersChange();
       showToast(`+${amount} DKP added`, 'success');
     } catch { showToast('Failed to update DKP', 'error'); }
@@ -91,11 +108,23 @@ export function AdminPage({ members, onMembersChange }: Props) {
   const handleRemoveDkp = async (id: string, current: number) => {
     const amount = parseInt(dkpInputs[id] || '');
     if (isNaN(amount) || amount <= 0) { showToast('Enter a valid amount', 'error'); return; }
+    const reason = reasonInputs[id]?.trim() || 'Manual adjustment';
+    const newDkp = Math.max(0, current - amount);
     setActionLoading(id);
     try {
-      await updateMemberDkp(id, Math.max(0, current - amount));
+      await updateMemberDkp(id, newDkp);
+      await createDkpLog({
+        member_id: id,
+        member_name: members.find((m) => m.id === id)?.username || '',
+        amount: -amount,
+        reason,
+        admin_name: adminName,
+        dkp_before: current,
+        dkp_after: newDkp,
+      });
       setEditingDkp((p) => ({ ...p, [id]: false }));
       setDkpInputs((p) => ({ ...p, [id]: '' }));
+      setReasonInputs((p) => ({ ...p, [id]: '' }));
       await onMembersChange();
       showToast(`-${amount} DKP removed`, 'success');
     } catch { showToast('Failed to update DKP', 'error'); }
@@ -153,6 +182,9 @@ export function AdminPage({ members, onMembersChange }: Props) {
           onCancel={() => setConfirmDelete(null)}
           loading={!!actionLoading?.startsWith('del-')}
         />
+      )}
+      {profileMember && (
+        <MemberProfileModal member={profileMember} onClose={() => setProfileMember(null)} />
       )}
 
       {/* Header */}
@@ -254,32 +286,40 @@ export function AdminPage({ members, onMembersChange }: Props) {
                 {/* Right: DKP + actions */}
                 <div className="flex items-center gap-2 flex-wrap">
                   {isEditingDkpThis ? (
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-center gap-2">
+                        <input
+                          value={dkpInputs[m.id] || ''}
+                          onChange={(e) => setDkpInputs((p) => ({ ...p, [m.id]: e.target.value }))}
+                          onKeyDown={(e) => e.key === 'Enter' && handleAddDkp(m.id, m.dkp)}
+                          type="number"
+                          placeholder="Amount"
+                          className="w-24 bg-black border border-[#1e2d3d] rounded-lg px-3 py-2 text-sm focus:border-cyan-500/50 focus:outline-none"
+                          autoFocus
+                        />
+                        <button onClick={() => handleAddDkp(m.id, m.dkp)}
+                          disabled={actionLoading === m.id}
+                          className="p-2 rounded-lg bg-green-500/15 text-green-400 hover:bg-green-500/25 border border-green-500/20 transition-all"
+                          title="Add DKP">
+                          {actionLoading === m.id ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+                        </button>
+                        <button onClick={() => handleRemoveDkp(m.id, m.dkp)}
+                          disabled={actionLoading === m.id}
+                          className="p-2 rounded-lg bg-yellow-500/15 text-yellow-400 hover:bg-yellow-500/25 border border-yellow-500/20 transition-all"
+                          title="Remove DKP">
+                          <Minus size={14} />
+                        </button>
+                        <button onClick={() => setEditingDkp((p) => ({ ...p, [m.id]: false }))}
+                          className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-gray-500 hover:text-white transition-all">
+                          <X size={14} />
+                        </button>
+                      </div>
                       <input
-                        value={dkpInputs[m.id] || ''}
-                        onChange={(e) => setDkpInputs((p) => ({ ...p, [m.id]: e.target.value }))}
-                        onKeyDown={(e) => e.key === 'Enter' && handleAddDkp(m.id, m.dkp)}
-                        type="number"
-                        placeholder="Amount"
-                        className="w-24 bg-black border border-[#1e2d3d] rounded-lg px-3 py-2 text-sm focus:border-cyan-500/50 focus:outline-none"
-                        autoFocus
+                        value={reasonInputs[m.id] || ''}
+                        onChange={(e) => setReasonInputs((p) => ({ ...p, [m.id]: e.target.value }))}
+                        placeholder="Reason (e.g. Event reward, Penalty...)"
+                        className="w-full bg-black border border-[#1e2d3d] rounded-lg px-3 py-1.5 text-xs focus:border-cyan-500/50 focus:outline-none text-gray-400"
                       />
-                      <button onClick={() => handleAddDkp(m.id, m.dkp)}
-                        disabled={actionLoading === m.id}
-                        className="p-2 rounded-lg bg-green-500/15 text-green-400 hover:bg-green-500/25 border border-green-500/20 transition-all"
-                        title="Add DKP">
-                        {actionLoading === m.id ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
-                      </button>
-                      <button onClick={() => handleRemoveDkp(m.id, m.dkp)}
-                        disabled={actionLoading === m.id}
-                        className="p-2 rounded-lg bg-yellow-500/15 text-yellow-400 hover:bg-yellow-500/25 border border-yellow-500/20 transition-all"
-                        title="Remove DKP">
-                        <Minus size={14} />
-                      </button>
-                      <button onClick={() => setEditingDkp((p) => ({ ...p, [m.id]: false }))}
-                        className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-gray-500 hover:text-white transition-all">
-                        <X size={14} />
-                      </button>
                     </div>
                   ) : (
                     <>
@@ -291,6 +331,13 @@ export function AdminPage({ members, onMembersChange }: Props) {
                         className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white text-xs font-bold uppercase tracking-wide transition-all border border-white/5"
                       >
                         <Edit3 size={12} /> DKP
+                      </button>
+                      <button
+                        onClick={() => setProfileMember(m)}
+                        className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-cyan-500/8 hover:bg-cyan-500/15 text-cyan-600 hover:text-cyan-400 text-xs font-bold uppercase tracking-wide transition-all border border-cyan-500/10"
+                        title="View full profile"
+                      >
+                        <ExternalLink size={12} />
                       </button>
                     </>
                   )}
