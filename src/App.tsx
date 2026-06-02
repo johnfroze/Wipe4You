@@ -7,14 +7,16 @@ import { AdminPage } from '@/pages/AdminPage';
 import { ShopPage } from '@/pages/ShopPage';
 import { ShopLogPage } from '@/pages/ShopLogPage';
 import { MyHistoryPage } from '@/pages/MyHistoryPage';
-import HomePage from './pages/HomePage';
+import { AnnouncementsPage } from '@/pages/AnnouncementsPage';
+import { DkpLogPage } from '@/pages/DkpLogPage';
 import {
   Shield, LogOut, ShoppingBag, ScrollText,
   Package, Gavel, Clock, Menu, X, Zap, AlertTriangle,
+  Megaphone, ClipboardList,
 } from 'lucide-react';
 import './App.css';
 
-type PageId = 'attendance' | 'auctions' | 'shop' | 'shop-log' | 'my-history' | 'admin';
+type PageId = 'attendance' | 'auctions' | 'shop' | 'shop-log' | 'my-history' | 'admin' | 'announcements' | 'dkp-log';
 
 function App() {
   const { currentUser, loading, isAdmin, authError } = useAuth();
@@ -118,12 +120,14 @@ function App() {
   if (!currentUser) return <HomePage onLogin={signInWithDiscord} />;
 
   const navItems: { id: PageId; label: string; icon: React.ReactNode; admin?: boolean }[] = [
-    { id: 'attendance',  label: 'Attendance',    icon: <Clock size={16} /> },
-    { id: 'auctions',    label: 'Auctions',      icon: <Gavel size={16} /> },
-    { id: 'shop',        label: 'DKP Shop',      icon: <ShoppingBag size={16} /> },
-    { id: 'my-history',  label: 'My Purchases',  icon: <Package size={16} /> },
-    { id: 'shop-log',    label: 'Shop Log',      icon: <ScrollText size={16} />, admin: true },
-    { id: 'admin',       label: 'Admin',         icon: <Shield size={16} />, admin: true },
+    { id: 'announcements', label: 'News',         icon: <Megaphone size={16} /> },
+    { id: 'attendance',    label: 'Attendance',   icon: <Clock size={16} /> },
+    { id: 'auctions',      label: 'Auctions',     icon: <Gavel size={16} /> },
+    { id: 'shop',          label: 'DKP Shop',     icon: <ShoppingBag size={16} /> },
+    { id: 'my-history',    label: 'My Purchases', icon: <Package size={16} /> },
+    { id: 'dkp-log',       label: 'DKP Log',      icon: <ClipboardList size={16} />, admin: true },
+    { id: 'shop-log',      label: 'Shop Log',     icon: <ScrollText size={16} />, admin: true },
+    { id: 'admin',         label: 'Admin',        icon: <Shield size={16} />, admin: true },
   ];
 
   const visibleNavItems = navItems.filter((i) => !i.admin || isAdmin);
@@ -266,6 +270,9 @@ function App() {
 
       {/* ── Main ── */}
       <main className="max-w-7xl mx-auto px-4 py-6">
+        {page === 'announcements' && (
+          <AnnouncementsPage currentUser={currentUser} />
+        )}
         {page === 'attendance' && (
           <AttendancePage currentUser={currentUser} members={members} onMembersChange={loadMembers} />
         )}
@@ -276,11 +283,12 @@ function App() {
           <ShopPage currentUser={currentUser} onDkpChange={refreshDkp} />
         )}
         {page === 'shop-log' && isAdmin && <ShopLogPage />}
+        {page === 'dkp-log' && isAdmin && <DkpLogPage currentUser={currentUser} />}
         {page === 'my-history' && (
           <MyHistoryPage buyerId={currentUser.member.id} />
         )}
         {page === 'admin' && isAdmin && (
-          <AdminPage members={members} onMembersChange={loadMembers} />
+          <AdminPage members={members} onMembersChange={loadMembers} currentUser={currentUser} />
         )}
       </main>
     </div>
