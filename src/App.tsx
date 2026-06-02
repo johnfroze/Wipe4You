@@ -76,6 +76,33 @@ function App() {
     if (data?.dkp !== undefined) setLiveDkp(data.dkp);
   };
 
+  // ── Keyboard shortcuts ──
+  // 1=News 2=Attendance 3=Auctions 4=Shop 5=Purchases
+  // / = focus search (if page has one)
+  useEffect(() => {
+    if (!currentUser) return;
+    const shortcutMap: Record<string, PageId> = {
+      '1': 'announcements',
+      '2': 'attendance',
+      '3': 'auctions',
+      '4': 'shop',
+      '5': 'my-history',
+      '6': isAdmin ? 'dkp-log' : 'my-history',
+      '7': isAdmin ? 'shop-log' : 'my-history',
+      '8': isAdmin ? 'admin' : 'my-history',
+    };
+    const handler = (e: KeyboardEvent) => {
+      // Ignore when typing in an input/textarea
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const dest = shortcutMap[e.key];
+      if (dest) { setPage(dest); setMobileMenuOpen(false); }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [currentUser, isAdmin]);
+
   // ── Loading ──
   if (loading) {
     return (
@@ -120,15 +147,15 @@ function App() {
   // ── Login page ──
   if (!currentUser) return <HomePage onLogin={signInWithDiscord} />;
 
-  const navItems: { id: PageId; label: string; icon: React.ReactNode; admin?: boolean }[] = [
-    { id: 'announcements', label: 'News',         icon: <Megaphone size={16} /> },
-    { id: 'attendance',    label: 'Attendance',   icon: <Clock size={16} /> },
-    { id: 'auctions',      label: 'Auctions',     icon: <Gavel size={16} /> },
-    { id: 'shop',          label: 'DKP Shop',     icon: <ShoppingBag size={16} /> },
-    { id: 'my-history',    label: 'My Purchases', icon: <Package size={16} /> },
-    { id: 'dkp-log',       label: 'DKP Log',      icon: <ClipboardList size={16} />, admin: true },
-    { id: 'shop-log',      label: 'Shop Log',     icon: <ScrollText size={16} />, admin: true },
-    { id: 'admin',         label: 'Admin',        icon: <Shield size={16} />, admin: true },
+  const navItems: { id: PageId; label: string; icon: React.ReactNode; admin?: boolean; kbd?: string }[] = [
+    { id: 'announcements', label: 'News',         icon: <Megaphone size={16} />,     kbd: '1' },
+    { id: 'attendance',    label: 'Attendance',   icon: <Clock size={16} />,         kbd: '2' },
+    { id: 'auctions',      label: 'Auctions',     icon: <Gavel size={16} />,         kbd: '3' },
+    { id: 'shop',          label: 'DKP Shop',     icon: <ShoppingBag size={16} />,   kbd: '4' },
+    { id: 'my-history',    label: 'My Purchases', icon: <Package size={16} />,       kbd: '5' },
+    { id: 'dkp-log',       label: 'DKP Log',      icon: <ClipboardList size={16} />, admin: true, kbd: '6' },
+    { id: 'shop-log',      label: 'Shop Log',     icon: <ScrollText size={16} />,    admin: true, kbd: '7' },
+    { id: 'admin',         label: 'Admin',        icon: <Shield size={16} />,        admin: true, kbd: '8' },
   ];
 
   const visibleNavItems = navItems.filter((i) => !i.admin || isAdmin);
@@ -193,6 +220,9 @@ function App() {
                 >
                   {item.icon}
                   <span>{item.label}</span>
+                  {item.kbd && page !== item.id && (
+                    <span className="kbd hidden xl:inline-flex">{item.kbd}</span>
+                  )}
                   {item.id === 'auctions' && auctionNotifications > 0 && (
                     <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
                       {auctionNotifications}

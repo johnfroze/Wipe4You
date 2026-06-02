@@ -256,3 +256,73 @@ select:focus {
 .loading-screen {
   background: radial-gradient(ellipse at center, #060d18 0%, #050508 100%);
 }
+
+/* ─── Skeleton loaders ───────────────────────────────────── */
+@keyframes shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+
+.skeleton-line,
+.skeleton-block {
+  background: linear-gradient(
+    90deg,
+    #0d1117 25%,
+    #1e2d3d 50%,
+    #0d1117 75%
+  );
+  background-size: 800px 100%;
+  animation: shimmer 1.6s infinite linear;
+  border-radius: 4px;
+}
+
+.skeleton-line  { display: block; height: 12px; width: 100%; }
+.skeleton-block { display: block; width: 100%; height: 100%; }
+
+/* ─── Keyboard shortcut badge ────────────────────────────── */
+.kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  background: #1e2d3d;
+  border: 1px solid #2a3f55;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #64748b;
+  font-family: monospace;
+}
+
+/* ─── Item description tooltip ───────────────────────────── */
+.item-desc {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* ─── Pagination ─────────────────────────────────────────── */
+.page-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid #1e2d3d;
+  background: #0d1117;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.page-btn:hover   { border-color: #00d4ff44; color: #e2e8f0; }
+.page-btn.active  { background: #00d4ff15; border-color: #00d4ff44; color: #00d4ff; }
+.page-btn:disabled { opacity: 0.3; cursor: not-allowed; }
