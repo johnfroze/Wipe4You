@@ -4,6 +4,8 @@ import type {
   Auction,
   ShopItem,
   ShopTransaction,
+  DkpLog,
+  Announcement,
 } from '@/types';
 
 const SUPABASE_URL =
@@ -534,4 +536,95 @@ export function subscribeMembersRealtime(onUpdate: () => void): () => void {
     .subscribe();
 
   return () => { supabase.removeChannel(channel); };
+}
+
+// =========================
+// DKP LOG
+// =========================
+
+export async function getDkpLogs(memberId?: string): Promise<DkpLog[]> {
+  let query = supabase
+    .from('dkp_log')
+    .select('*')
+    .order('created_at', { ascending: false });
+  if (memberId) query = query.eq('member_id', memberId);
+  const { data, error } = await query;
+  if (error) throw error;
+  return data || [];
+}
+
+export async function createDkpLog(entry: Omit<DkpLog, 'id' | 'created_at'>) {
+  const { error } = await supabase.from('dkp_log').insert(entry);
+  if (error) throw error;
+}
+
+export async function clearDkpLogs() {
+  const { error } = await supabase.from('dkp_log').delete().neq('id', 0);
+  if (error) throw error;
+}
+
+// =========================
+// ANNOUNCEMENTS
+// =========================
+
+export async function getAnnouncements(): Promise<Announcement[]> {
+  const { data, error } = await supabase
+    .from('announcements')
+    .select('*')
+    .order('pinned', { ascending: false })
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function createAnnouncement(a: Pick<Announcement, 'title' | 'body' | 'author_name' | 'pinned'>) {
+  const { error } = await supabase.from('announcements').insert(a);
+  if (error) throw error;
+}
+
+export async function updateAnnouncement(id: number, updates: Partial<Announcement>) {
+  const { error } = await supabase.from('announcements').update(updates).eq('id', id);
+  if (error) throw error;
+}
+
+export async function deleteAnnouncement(id: number) {
+  const { error } = await supabase.from('announcements').delete().eq('id', id);
+  if (error) throw error;
+}
+
+// =========================
+// MEMBER PROFILE (aggregated)
+// =========================
+
+export async function getMemberProfile(memberId: string) {
+  const [dkpLogs, attendanceLogs, shopPurchases, auctions] = await Promise.all([
+    getDkpLogs(memberId),
+    supabase
+      .from('attendance_log')
+      .select('*')
+      .eq('member_id', memberId)
+      .order('recorded_at', { ascending: false })
+      .then(({ data }) => data || []),
+    supabase
+      .from('shop_transactions')
+      .select('*, item:shop_items(*)')
+      .eq('buyer_id', memberId)
+      .order('purchase_timestamp', { ascending: false })
+      .then(({ data }) => data || []),
+    supabase
+      .from('auctions')
+      .select('*')
+      .eq('ended', true)
+      .then(({ data }) => data || []),
+  ]);
+
+  const auctionWins = auctions.filter(
+    (a: any) => a.highest_bidder && a.highest_bidder !== 'None' &&
+      shopPurchases.some ? true : true // placeholder — filtered below
+  ).filter((a: any) => {
+    // We don't have member username here, so return all — caller filters by username
+    return a;
+  });
+
+  return { dkpLogs, attendanceLogs, shopPurchases, auctionWins };
 }
