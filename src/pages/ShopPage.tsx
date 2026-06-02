@@ -71,6 +71,7 @@ function EditItemModal({
   const [stock, setStock] = useState(String(item.current_stock));
   const [totalStock, setTotalStock] = useState(String(item.total_stock));
   const [imageUrl, setImageUrl] = useState(item.image_url || '');
+  const [description, setDescription] = useState(item.description || '');
   const [saving, setSaving] = useState(false);
 
   const handleSave = async () => {
@@ -82,6 +83,7 @@ function EditItemModal({
       current_stock: parseInt(stock),
       total_stock: parseInt(totalStock) || parseInt(stock),
       image_url: imageUrl,
+      description,
     });
     setSaving(false);
   };
@@ -115,6 +117,13 @@ function EditItemModal({
             <label className="text-xs text-gray-500 mb-1 block">Total Stock</label>
             <input value={totalStock} onChange={(e) => setTotalStock(e.target.value)} type="number"
               className="w-full bg-black border border-[#333] rounded-xl p-3 text-sm focus:border-cyan-500/50 focus:outline-none" />
+          </div>
+          <div>
+            <label className="text-xs text-gray-500 mb-1 block">Description (optional)</label>
+            <textarea value={description} onChange={(e) => setDescription(e.target.value)}
+              placeholder="Short description shown on the item card..."
+              rows={2}
+              className="w-full bg-black border border-[#333] rounded-xl p-3 text-sm focus:border-cyan-500/50 focus:outline-none resize-none" />
           </div>
           <div>
             <label className="text-xs text-gray-500 mb-1 block">Image URL (optional)</label>
@@ -356,8 +365,26 @@ export function ShopPage({ currentUser, onDkpChange }: Props) {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-cyan-400" />
+      <div className="space-y-6 animate-fade-in">
+        <div className="flex justify-between items-center">
+          <div className="space-y-2">
+            <div className="skeleton-line w-32 h-7" />
+            <div className="skeleton-line w-48 h-4" />
+          </div>
+        </div>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="card overflow-hidden">
+              <div className="skeleton-block h-48 rounded-none" />
+              <div className="p-4 space-y-3">
+                <div className="skeleton-line w-3/4 h-4" />
+                <div className="skeleton-line w-1/2 h-6" />
+                <div className="skeleton-line w-full h-2 rounded-full" />
+                <div className="skeleton-block w-full h-10 rounded-xl" />
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
@@ -523,7 +550,10 @@ export function ShopPage({ currentUser, onDkpChange }: Props) {
                 <div className="p-4 space-y-3">
                   <div>
                     <div className="font-bold text-base">{item.name}</div>
-                    <div className="text-cyan-400 font-bold text-xl mt-0.5">{item.price} DKP</div>
+                    {item.description && (
+                      <p className="item-desc mt-0.5">{item.description}</p>
+                    )}
+                    <div className="text-cyan-400 font-bold text-xl mt-1">{item.price} DKP</div>
                   </div>
 
                   {/* Stock bar */}

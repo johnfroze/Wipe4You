@@ -89,6 +89,8 @@ export function ShopLogPage() {
   const [bulkLoading, setBulkLoading] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
   const [showBuyerSummary, setShowBuyerSummary] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 25;
 
   // Modal state
   const [modal, setModal] = useState<'reset' | 'markAll' | null>(null);
@@ -275,6 +277,17 @@ export function ShopLogPage() {
       pendingRevenue: pending.reduce((sum, t) => sum + t.total_price, 0),
     };
   }, [transactions]);
+
+  // Reset to page 1 whenever filters change
+  const totalPages = Math.max(1, Math.ceil(filteredTransactions.length / PAGE_SIZE));
+  const safePage = Math.min(currentPage, totalPages);
+  const paginatedTransactions = useMemo(() => {
+    const start = (safePage - 1) * PAGE_SIZE;
+    return filteredTransactions.slice(start, start + PAGE_SIZE);
+  }, [filteredTransactions, safePage, PAGE_SIZE]);
+
+  // Reset page when filters change
+  useEffect(() => { setCurrentPage(1); }, [search, statusFilter, sortBy]);
 
   // ─── CSV Export ───
   const exportToCSV = useCallback(() => {
@@ -553,7 +566,7 @@ export function ShopLogPage() {
               </tr>
             </thead>
             <tbody>
-              {filteredTransactions.map((t) => (
+              {paginatedTransactions.map((t) => (
                 <tr key={t.id} className="border-b border-[#1a1a1a] hover:bg-[#0a0a0a] transition-colors">
                   <td className="p-4">
                     <div className="flex items-center gap-2">
@@ -637,6 +650,52 @@ export function ShopLogPage() {
                 ? 'No transactions match your filters'
                 : 'No transactions yet'}
             </p>
+          </div>
+        )}
+
+        {/* Pagination */}
+        {filteredTransactions.length > PAGE_SIZE && (
+          <div className="flex items-center justify-between px-4 py-3 border-t border-[#1e2d3d]">
+            <span className="text-xs text-gray-600">
+              Showing {((safePage - 1) * PAGE_SIZE) + 1}–{Math.min(safePage * PAGE_SIZE, filteredTransactions.length)} of {filteredTransactions.length}
+            </span>
+            <div className="flex items-center gap-1.5">
+              <button
+                className="page-btn"
+                onClick={() => setCurrentPage(1)}
+                disabled={safePage === 1}
+              >«</button>
+              <button
+                className="page-btn"
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                disabled={safePage === 1}
+              >‹</button>
+
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                const start = Math.max(1, Math.min(safePage - 2, totalPages - 4));
+                const page = start + i;
+                return (
+                  <button
+                    key={page}
+                    onClick={() => setCurrentPage(page)}
+                    className={`page-btn ${safePage === page ? 'active' : ''}`}
+                  >
+                    {page}
+                  </button>
+                );
+              })}
+
+              <button
+                className="page-btn"
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={safePage === totalPages}
+              >›</button>
+              <button
+                className="page-btn"
+                onClick={() => setCurrentPage(totalPages)}
+                disabled={safePage === totalPages}
+              >»</button>
+            </div>
           </div>
         )}
       </div>

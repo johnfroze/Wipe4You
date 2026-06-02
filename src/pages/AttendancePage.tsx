@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase, updateMemberDkp } from '@/lib/supabase';
+import { SkeletonMemberRow, SkeletonStats } from '@/pages/Skeletons';
 import type { CurrentUser, Member, AttendanceEvent } from '@/types';
 import {
   Plus,
@@ -15,6 +16,7 @@ import {
   TrendingUp,
   X,
   Loader2,
+  Search,
 } from 'lucide-react';
 
 // ─── Types ───────────────────────────────────────────────
@@ -123,6 +125,7 @@ export function AttendancePage({ currentUser, members, onMembersChange }: Props)
   const [showModal, setShowModal] = useState(false);
   const [savingAttendance, setSavingAttendance] = useState(false);
   const [expandedMember, setExpandedMember] = useState<string | null>(null);
+  const [memberSearch, setMemberSearch] = useState('');
 
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [confirmModal, setConfirmModal] = useState<'decay' | 'reset' | 'deleteEvent' | null>(null);
@@ -477,22 +480,46 @@ export function AttendancePage({ currentUser, members, onMembersChange }: Props)
 
       {/* ── Leaderboard ── */}
       <div className="card p-5">
-        <div className="flex items-center justify-between mb-5">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-5">
           <div className="flex items-center gap-2">
             <Crown className="text-yellow-400" size={22} />
             <h2 className="text-xl font-bold">Leaderboard</h2>
-            <span className="text-gray-500 text-sm ml-1">({members.length} members)</span>
+            <span className="text-gray-500 text-sm ml-1">
+              ({memberSearch
+                ? `${members.filter(m => m.username.toLowerCase().includes(memberSearch.toLowerCase())).length} of ${members.length}`
+                : members.length} members)
+            </span>
           </div>
-          {logsLoading && (
-            <div className="flex items-center gap-2 text-xs text-gray-500">
-              <Loader2 size={12} className="animate-spin" />
-              Loading history...
+          <div className="flex items-center gap-3">
+            {logsLoading && (
+              <div className="flex items-center gap-2 text-xs text-gray-500">
+                <Loader2 size={12} className="animate-spin" />
+                Loading history...
+              </div>
+            )}
+            {/* Search */}
+            <div className="relative">
+              <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-600" />
+              <input
+                value={memberSearch}
+                onChange={(e) => setMemberSearch(e.target.value)}
+                placeholder="Search members..."
+                className="pl-8 pr-3 py-2 bg-black/60 border border-[#1e2d3d] rounded-xl text-xs focus:border-cyan-500/50 focus:outline-none w-44"
+              />
+              {memberSearch && (
+                <button onClick={() => setMemberSearch('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-600 hover:text-white">
+                  <X size={11} />
+                </button>
+              )}
             </div>
-          )}
+          </div>
         </div>
 
         <div className="space-y-2">
-          {members.map((m, i) => {
+          {members
+            .filter(m => !memberSearch || m.username.toLowerCase().includes(memberSearch.toLowerCase()))
+            .map((m, i) => {
             const logs = getLogsForMember(m.id);
             const isExpanded = expandedMember === m.id;
             const attendanceCount = m.attendance || 0;
@@ -668,6 +695,15 @@ export function AttendancePage({ currentUser, members, onMembersChange }: Props)
               </div>
             );
           })}
+          {/* Empty search state */}
+          {memberSearch && members.filter(m =>
+            m.username.toLowerCase().includes(memberSearch.toLowerCase())
+          ).length === 0 && (
+            <div className="py-10 text-center">
+              <Search size={32} className="mx-auto text-gray-700 mb-2" />
+              <p className="text-gray-500 text-sm">No members match "{memberSearch}"</p>
+            </div>
+          )}
         </div>
       </div>
 
