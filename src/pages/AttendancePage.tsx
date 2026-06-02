@@ -16,6 +16,8 @@ import {
   X,
   Loader2,
   Search,
+  Users,
+  History,
 } from 'lucide-react';
 
 // ─── Types ───────────────────────────────────────────────
@@ -125,6 +127,9 @@ export function AttendancePage({ currentUser, members, onMembersChange }: Props)
   const [savingAttendance, setSavingAttendance] = useState(false);
   const [expandedMember, setExpandedMember] = useState<string | null>(null);
   const [memberSearch, setMemberSearch] = useState('');
+  const [showEventHistory, setShowEventHistory] = useState(false);
+  const [expandedEvent, setExpandedEvent] = useState<string | null>(null);
+  const [eventHistorySearch, setEventHistorySearch] = useState('');
 
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [confirmModal, setConfirmModal] = useState<'decay' | 'reset' | 'deleteEvent' | null>(null);
@@ -243,7 +248,70 @@ export function AttendancePage({ currentUser, members, onMembersChange }: Props)
     [members]
   );
 
-  // ── Add Event ──
+  // ── Event History groups ──
+  // Groups all attendance_log rows by event_name, collects unique attendees
+  // per session (by date), so admin can see exactly who attended each event.
+  const eventGroups = useMemo(() => {
+    const map = new Map<string, {
+      eventName: string;
+      dkpAwarded: number;
+      totalAttendees: number;
+      sessions: {
+        date: string;
+        attendees: { memberId: string; memberName: string }[];
+      }[];
+    }>();
+
+    attendanceLogs.forEach((log) => {
+      const existing = map.get(log.event_name);
+      const date = new Date(log.recorded_at).toLocaleDateString(undefined, {
+        year: 'numeric', month: 'short', day: 'numeric',
+      });
+      const memberName =
+        members.find((m) => String(m.id) === String(log.member_id))?.username ||
+        `Unknown (${log.member_id.slice(0, 6)})`;
+
+      if (existing) {
+        const session = existing.sessions.find((s) => s.date === date);
+        if (session) {
+          if (!session.attendees.find((a) => a.memberId === log.member_id)) {
+            session.attendees.push({ memberId: log.member_id, memberName });
+            existing.totalAttendees++;
+          }
+        } else {
+          existing.sessions.push({ date, attendees: [{ memberId: log.member_id, memberName }] });
+          existing.totalAttendees++;
+        }
+      } else {
+        map.set(log.event_name, {
+          eventName: log.event_name,
+          dkpAwarded: log.dkp_awarded,
+          totalAttendees: 1,
+          sessions: [{ date, attendees: [{ memberId: log.member_id, memberName }] }],
+        });
+      }
+    });
+
+    // Sort sessions newest first within each event
+    return Array.from(map.values())
+      .sort((a, b) => b.totalAttendees - a.totalAttendees)
+      .map((g) => ({
+        ...g,
+        sessions: g.sessions.sort(
+          (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+        ),
+      }));
+  }, [attendanceLogs, members]);
+
+  const filteredEventGroups = useMemo(() => {
+    if (!eventHistorySearch) return eventGroups;
+    const q = eventHistorySearch.toLowerCase();
+    return eventGroups.filter(
+      (g) =>
+        g.eventName.toLowerCase().includes(q) ||
+        g.sessions.some((s) => s.attendees.some((a) => a.memberName.toLowerCase().includes(q)))
+    );
+  }, [eventGroups, eventHistorySearch]);
   const addEvent = async () => {
     const name = newEventName.trim();
     const dkp = parseInt(newEventDkp);
@@ -476,6 +544,201 @@ export function AttendancePage({ currentUser, members, onMembersChange }: Props)
           </div>
         )}
       </div>
+
+      {/* ── Event History (admin only) ── */}
+      {isAdmin && (
+        <div className="card overflow-hidden">
+          {/* Header */}
+          <div
+            className="flex items-center justify-between p-4 cursor-pointer select-none hover:bg-white/[0.02] transition-colors"
+            onClick={() => setShowEventHistory((v) => !v)}
+          >
+            <div className="flex items-center gap-2.5">
+              <div className="w-7 h-7 rounded-lg bg-cyan-400/10 border border-cyan-400/20 flex items-center justify-center">
+                <History size={14} className="text-cyan-400" />
+              </div>
+              <div>
+                <h2 className="font-black text-base">Event Attendance History</h2>
+                <p className="text-gray-500 text-xs mt-0.5">
+                  {eventGroups.length} event{eventGroups.length !== 1 ? 's' : ''} recorded
+                  {logsLoading && ' · loading...'}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              {showEventHistory && (
+                <div className="relative" onClick={(e) => e.stopPropagation()}>
+                  <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-600" />
+                  <input
+                    value={eventHistorySearch}
+                    onChange={(e) => setEventHistorySearch(e.target.value)}
+                    placeholder="Search event or player..."
+                    className="pl-8 pr-3 py-1.5 bg-black/60 border border-[#1e2d3d] rounded-xl text-xs focus:border-cyan-500/50 focus:outline-none w-48"
+                  />
+                  {eventHistorySearch && (
+                    <button onClick={() => setEventHistorySearch('')}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-600 hover:text-white">
+                      <X size={11} />
+                    </button>
+                  )}
+                </div>
+              )}
+              <div className="text-gray-600">
+                {showEventHistory ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+              </div>
+            </div>
+          </div>
+
+          {/* Content */}
+          {showEventHistory && (
+            <div className="border-t border-[#1e2d3d] animate-fade-in">
+              {logsLoading ? (
+                <div className="flex items-center justify-center gap-2 py-10 text-gray-500">
+                  <Loader2 size={16} className="animate-spin" />
+                  <span className="text-sm">Loading history...</span>
+                </div>
+              ) : filteredEventGroups.length === 0 ? (
+                <div className="py-10 text-center">
+                  <History size={36} className="mx-auto text-gray-700 mb-2" />
+                  <p className="text-gray-500 text-sm">
+                    {eventHistorySearch ? `No results for "${eventHistorySearch}"` : 'No attendance history recorded yet'}
+                  </p>
+                </div>
+              ) : (
+                <div className="divide-y divide-[#0f1923]">
+                  {filteredEventGroups.map((group) => {
+                    const isOpen = expandedEvent === group.eventName;
+                    const totalUniquePlayers = new Set(
+                      group.sessions.flatMap((s) => s.attendees.map((a) => a.memberId))
+                    ).size;
+
+                    return (
+                      <div key={group.eventName}>
+                        {/* Event row */}
+                        <div
+                          className="flex items-center justify-between px-4 py-3.5 cursor-pointer hover:bg-white/[0.02] transition-colors"
+                          onClick={() => setExpandedEvent(isOpen ? null : group.eventName)}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-xl bg-cyan-500/8 border border-cyan-500/15 flex items-center justify-center shrink-0">
+                              <Calendar size={14} className="text-cyan-400" />
+                            </div>
+                            <div>
+                              <div className="font-bold text-sm">{group.eventName}</div>
+                              <div className="flex items-center gap-3 mt-0.5">
+                                <span className="flex items-center gap-1 text-[11px] text-gray-500">
+                                  <Users size={10} />
+                                  {totalUniquePlayers} unique player{totalUniquePlayers !== 1 ? 's' : ''}
+                                </span>
+                                <span className="text-[11px] text-gray-600">·</span>
+                                <span className="text-[11px] text-gray-500">
+                                  {group.sessions.length} session{group.sessions.length !== 1 ? 's' : ''}
+                                </span>
+                                <span className="text-[11px] text-gray-600">·</span>
+                                <span className="text-[11px] text-cyan-600 font-bold">
+                                  +{group.dkpAwarded} DKP each
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3 shrink-0">
+                            <div className="text-right hidden sm:block">
+                              <div className="text-xs text-gray-600">Last run</div>
+                              <div className="text-xs text-gray-400 font-medium">
+                                {group.sessions[0]?.date || '—'}
+                              </div>
+                            </div>
+                            <div className="text-gray-600">
+                              {isOpen ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Sessions list */}
+                        {isOpen && (
+                          <div className="bg-[#060a10] px-4 pb-4 pt-2 animate-fade-in space-y-3">
+                            {group.sessions.map((session, si) => (
+                              <div key={si} className="rounded-xl border border-[#1a2234] overflow-hidden">
+                                {/* Session header */}
+                                <div className="flex items-center justify-between px-3 py-2.5 bg-black/40">
+                                  <div className="flex items-center gap-2">
+                                    <Clock size={12} className="text-gray-600" />
+                                    <span className="text-xs font-bold text-gray-300">{session.date}</span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="flex items-center gap-1 text-[11px] text-gray-500">
+                                      <Users size={10} />
+                                      {session.attendees.length} player{session.attendees.length !== 1 ? 's' : ''}
+                                    </span>
+                                    <span className="text-[11px] text-cyan-600 font-bold">
+                                      +{group.dkpAwarded} DKP
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {/* Attendees grid */}
+                                <div className="p-2 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-1.5">
+                                  {session.attendees
+                                    .filter((a) =>
+                                      !eventHistorySearch ||
+                                      a.memberName.toLowerCase().includes(eventHistorySearch.toLowerCase())
+                                    )
+                                    .sort((a, b) => a.memberName.localeCompare(b.memberName))
+                                    .map((attendee) => {
+                                      const memberData = members.find(
+                                        (m) => String(m.id) === String(attendee.memberId)
+                                      );
+                                      return (
+                                        <div
+                                          key={attendee.memberId}
+                                          className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-black/30 border border-[#1e2d3d]"
+                                        >
+                                          {memberData?.avatar ? (
+                                            <img
+                                              src={memberData.avatar}
+                                              alt=""
+                                              className="w-5 h-5 rounded-full border border-[#1e2d3d] shrink-0"
+                                            />
+                                          ) : (
+                                            <div className="w-5 h-5 rounded-full bg-[#1e2d3d] shrink-0" />
+                                          )}
+                                          <span className="text-xs text-gray-300 truncate font-medium">
+                                            {attendee.memberName}
+                                          </span>
+                                          {memberData?.role === 'leader' && (
+                                            <Crown size={9} className="text-yellow-400 shrink-0" />
+                                          )}
+                                        </div>
+                                      );
+                                    })}
+                                </div>
+
+                                {/* "X more" if search filters some out */}
+                                {eventHistorySearch &&
+                                  session.attendees.filter((a) =>
+                                    a.memberName.toLowerCase().includes(eventHistorySearch.toLowerCase())
+                                  ).length < session.attendees.length && (
+                                  <div className="px-3 pb-2 text-[11px] text-gray-600">
+                                    +{session.attendees.length -
+                                      session.attendees.filter((a) =>
+                                        a.memberName.toLowerCase().includes(eventHistorySearch.toLowerCase())
+                                      ).length} more not shown
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Leaderboard ── */}
       <div className="card p-5">
