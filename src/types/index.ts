@@ -18,6 +18,15 @@ export interface AttendanceEvent {
   dkp: number;
 }
 
+export interface AttendanceLog {
+  id: number;
+  member_id: string;
+  event_id: number | null;
+  event_name: string;
+  dkp_awarded: number;
+  recorded_at: string;
+}
+
 export interface Auction {
   id: number;
   item: string;
@@ -80,4 +89,36 @@ export interface AppUser {
 export interface CurrentUser {
   user: AppUser;
   member: Member;
+}
+
+// ── New: DKP change log ──────────────────────────────────
+export interface DkpLog {
+  id: number;
+  member_id: string;
+  member_name: string;
+  amount: number;        // positive = add, negative = remove
+  reason: string;
+  admin_name: string;
+  dkp_before: number;
+  dkp_after: number;
+  created_at: string;
+}
+
+// ── New: Guild announcements ─────────────────────────────
+export interface Announcement {
+  id: number;
+  title: string;
+  body: string;
+  author_name: string;
+  pinned: boolean;
+  created_at: string;
+}
+
+// ── New: Member profile (aggregated view) ────────────────
+export interface MemberProfile {
+  member: Member;
+  dkpLogs: DkpLog[];
+  attendanceLogs: AttendanceLog[];
+  auctionWins: Auction[];
+  shopPurchases: ShopTransaction[];
 }
