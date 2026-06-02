@@ -239,12 +239,27 @@ export function AuctionsPage({ currentUser, members, onMembersChange }: Props) {
         processingRef.current.add(a.id);
         try {
           const result = await endAuctionAtomic(a.id);
-          // 'ok' = winner charged, 'already_ended' = another tab got here first,
-          // 'no_winner' = no bids placed — all safe outcomes
-          if (result === 'ok') onMembersChangeRef.current();
+          console.debug(`[end_auction] id=${a.id} result=${result}`);
+          if (result === 'ok') {
+            onMembersChangeRef.current();
+          } else if (result === 'winner_not_found') {
+            // Winner's username didn't match any member row
+            // This means highest_bidder name doesn't match members.username exactly
+            console.error(`[end_auction] winner not found for auction ${a.id} — bidder was "${a.highest_bidder}"`);
+          }
           await loadAuctions();
-        } catch (err) {
-          console.error('endAuctionAtomic error:', err);
+        } catch (err: any) {
+          // Most likely the RPC function doesn't exist yet in Supabase.
+          // Go to Supabase SQL Editor and run the end_auction function SQL.
+          console.error(`[end_auction] RPC failed for auction ${a.id}:`, err?.message || err);
+          // Fallback: mark ended in DB so the auction at least closes,
+          // but DKP deduction will need to be done manually via Admin panel.
+          try {
+            await supabase.from('auctions').update({ ended: true }).eq('id', a.id);
+            await loadAuctions();
+          } catch (fallbackErr) {
+            console.error('[end_auction] fallback also failed:', fallbackErr);
+          }
         } finally {
           processingRef.current.delete(a.id);
         }
