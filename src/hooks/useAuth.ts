@@ -20,15 +20,16 @@ import { checkGuildMember } from '@/lib/discord';
 
 export function useAuth() {
   const [currentUser, setCurrentUser] =
-    useState<CurrentUser | null>(
-      null
-    );
+    useState<CurrentUser | null>(null);
 
   const [loading, setLoading] =
     useState(true);
 
-  const initStarted =
-    useRef(false);
+  // null = not checked yet, string = error message to show in UI
+  const [authError, setAuthError] =
+    useState<string | null>(null);
+
+  const initStarted = useRef(false);
 
   // HANDLE USER LOGIN
   const handleUser = async (
@@ -41,11 +42,9 @@ export function useAuth() {
 
       if (!allowed) {
         await supabase.auth.signOut();
-
-        alert(
-          'You must join the guild Discord server first.'
+        setAuthError(
+          'You must be a member of the guild Discord server to access this dashboard.'
         );
-
         return;
       }
 
@@ -265,6 +264,7 @@ export function useAuth() {
   return {
     currentUser,
     loading,
+    authError,
     isLeader,
     isElder,
     isAdmin,
