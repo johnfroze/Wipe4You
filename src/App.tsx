@@ -52,7 +52,7 @@ function App() {
     const unsubscribe = subscribeMembersRealtime(() => {
       loadMembers();
     });
-    return unsubscribe;
+    return () => { unsubscribe(); };
   }, [currentUser, loadMembers]);
 
   // Realtime: auction activity badge on nav
