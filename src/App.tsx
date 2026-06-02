@@ -9,6 +9,7 @@ import { ShopLogPage } from '@/pages/ShopLogPage';
 import { MyHistoryPage } from '@/pages/MyHistoryPage';
 import { AnnouncementsPage } from '@/pages/AnnouncementsPage';
 import { DkpLogPage } from '@/pages/DkpLogPage';
+import HomePage from './pages/HomePage';
 import {
   Shield, LogOut, ShoppingBag, ScrollText,
   Package, Gavel, Clock, Menu, X, Zap, AlertTriangle,
