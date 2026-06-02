@@ -8,7 +8,7 @@ import {
   Gavel, Plus, Trash2, Timer, TrendingUp, X,
   AlertTriangle, CheckCircle2, ChevronUp, ChevronDown,
   Loader2, Zap, Trophy, Users, Clock,
-  TimerReset, Eye, EyeOff, ShieldAlert,
+  TimerReset, Eye, EyeOff,
 } from 'lucide-react';
 
 interface Props {
