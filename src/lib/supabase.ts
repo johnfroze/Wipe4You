@@ -523,7 +523,7 @@ export async function endAuctionAtomic(auctionId: number): Promise<string> {
 // Subscribes to all member row changes and calls the callback.
 // Returns an unsubscribe function. Use in App.tsx to keep the
 // members list fresh without polling.
-export function subscribeMembersRealtime(onUpdate: () => void) {
+export function subscribeMembersRealtime(onUpdate: () => void): () => void {
   const channel = supabase
     .channel('members-global-realtime')
     .on(
@@ -533,5 +533,5 @@ export function subscribeMembersRealtime(onUpdate: () => void) {
     )
     .subscribe();
 
-  return () => supabase.removeChannel(channel);
+  return () => { supabase.removeChannel(channel); };
 }
