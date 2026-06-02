@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   supabase, getAuctions, createAuction,
   updateAuction, deleteAuction, uploadAuctionImage,
+  endAuctionAtomic,
 } from '@/lib/supabase';
 import type { CurrentUser, Member, Auction } from '@/types';
 import {
@@ -229,26 +230,24 @@ export function AuctionsPage({ currentUser, members, onMembersChange }: Props) {
     return () => clearInterval(interval);
   }, []);
 
-  // Auto-end auctions
+  // Auto-end auctions — uses atomic Postgres RPC so multiple
+  // open tabs cannot double-charge the winner's DKP
   useEffect(() => {
     const checkEnded = async () => {
       for (const a of auctionsRef.current) {
         if (a.ended || processingRef.current.has(a.id) || Date.now() < a.end_time) continue;
         processingRef.current.add(a.id);
         try {
-          await supabase.from('auctions').update({ ended: true }).eq('id', a.id);
-          if (a.highest_bidder && a.highest_bidder !== 'None') {
-            const winner = membersRef.current.find((m) => m.username === a.highest_bidder);
-            if (winner) {
-              await supabase.from('members')
-                .update({ dkp: Math.max(0, winner.dkp - a.current_bid) })
-                .eq('id', winner.id);
-              onMembersChangeRef.current();
-            }
-          }
+          const result = await endAuctionAtomic(a.id);
+          // 'ok' = winner charged, 'already_ended' = another tab got here first,
+          // 'no_winner' = no bids placed — all safe outcomes
+          if (result === 'ok') onMembersChangeRef.current();
           await loadAuctions();
-        } catch (err) { console.error(err); }
-        finally { processingRef.current.delete(a.id); }
+        } catch (err) {
+          console.error('endAuctionAtomic error:', err);
+        } finally {
+          processingRef.current.delete(a.id);
+        }
       }
     };
     checkEnded();
