@@ -619,12 +619,8 @@ export async function getMemberProfile(memberId: string) {
   ]);
 
   const auctionWins = auctions.filter(
-    (a: any) => a.highest_bidder && a.highest_bidder !== 'None' &&
-      shopPurchases.some ? true : true // placeholder — filtered below
-  ).filter((a: any) => {
-    // We don't have member username here, so return all — caller filters by username
-    return a;
-  });
+    (a: any) => a.highest_bidder && a.highest_bidder !== 'None' && a.highest_bidder !== ''
+  );
 
   return { dkpLogs, attendanceLogs, shopPurchases, auctionWins };
 }
