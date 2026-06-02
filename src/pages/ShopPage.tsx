@@ -63,7 +63,7 @@ function EditItemModal({
   item, onSave, onCancel,
 }: {
   item: ShopItem;
-  onSave: (updates: { name: string; price: number; current_stock: number; total_stock: number; image_url: string }) => Promise<void>;
+  onSave: (updates: { name: string; price: number; current_stock: number; total_stock: number; image_url: string; description: string }) => Promise<void>;
   onCancel: () => void;
 }) {
   const [name, setName] = useState(item.name);
