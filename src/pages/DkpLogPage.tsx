@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase, getDkpLogs, clearDkpLogs } from '@/lib/supabase';
 import type { DkpLog, CurrentUser } from '@/types';
 import {
-  Zap, Search, Filter, Download, Trash2,
+  Search, Filter, Download, Trash2,
   TrendingUp, TrendingDown, X, CheckCircle2,
   AlertTriangle, Loader2, ClipboardList,
 } from 'lucide-react';

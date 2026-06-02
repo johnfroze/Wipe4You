@@ -4,7 +4,7 @@ import type { Member, DkpLog, ShopTransaction, Auction } from '@/types';
 import {
   X, Crown, Star, User, Zap, Calendar,
   ShoppingBag, Gavel, TrendingUp, TrendingDown,
-  Trophy, ClipboardList, Loader2, CheckCircle2,
+  Trophy, Loader2, CheckCircle2,
 } from 'lucide-react';
 
 interface Props {
