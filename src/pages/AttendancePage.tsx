@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase, updateMemberDkp } from '@/lib/supabase';
-import { SkeletonMemberRow, SkeletonStats } from '@/pages/Skeletons';
 import type { CurrentUser, Member, AttendanceEvent } from '@/types';
 import {
   Plus,
