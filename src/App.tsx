@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { signInWithDiscord, signOut, supabase, subscribeMembersRealtime } from '@/lib/supabase';
+import { signInWithDiscord, signOut, supabase, subscribeMembersRealtime, expireShopItems } from '@/lib/supabase';
 import { useAuth, useMembers } from '@/hooks/useAuth';
 import { AttendancePage } from '@/pages/AttendancePage';
 import { AuctionsPage } from '@/pages/AuctionsPage';
@@ -15,7 +15,7 @@ import {
   Shield, LogOut, ShoppingBag, ScrollText,
   Package, Gavel, Clock, Zap, AlertTriangle,
   Megaphone, ClipboardList, ChevronLeft, ChevronRight,
-  Crown, Star, User, Ticket,
+  Crown, Star, User, Ticket, X,
 } from 'lucide-react';
 import './App.css';
 
@@ -38,6 +38,7 @@ function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [auctionNotifications, setAuctionNotifications] = useState(0);
   const [liveDkp, setLiveDkp] = useState(0);
+  const [expiredNotice, setExpiredNotice] = useState(0);
 
   // Sync DKP
   useEffect(() => {
@@ -83,6 +84,28 @@ function App() {
       .from('members').select('dkp').eq('id', currentUser.member.id).single();
     if (data?.dkp !== undefined) setLiveDkp(data.dkp);
   };
+
+  // ── Global expiry checker ──────────────────────────────
+  // Runs every 60 seconds while the app is open, regardless
+  // of which page is active. This ensures items are transferred
+  // to raffle the moment they expire — not just on page nav.
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const runExpiry = async () => {
+      const count = await expireShopItems();
+      if (count > 0) {
+        // Notify the user that new raffles appeared
+        setExpiredNotice(count);
+        setTimeout(() => setExpiredNotice(0), 6000);
+      }
+    };
+
+    // Run immediately on login, then every 60 seconds
+    runExpiry();
+    const interval = setInterval(runExpiry, 60_000);
+    return () => clearInterval(interval);
+  }, [currentUser]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -241,6 +264,32 @@ function App() {
 
   return (
     <div className="min-h-screen bg-[#050508] text-white flex">
+
+      {/* ── Expired items raffle toast ── */}
+      {expiredNotice > 0 && (
+        <div
+          onClick={() => { setPage('raffle'); setExpiredNotice(0); }}
+          className="fixed top-4 left-1/2 -translate-x-1/2 z-50 cursor-pointer animate-slide-in-right"
+        >
+          <div className="flex items-center gap-3 px-5 py-3 rounded-2xl bg-purple-500/15 border border-purple-500/30 shadow-2xl shadow-purple-500/10 backdrop-blur-md">
+            <div className="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center shrink-0">
+              <Ticket size={16} className="text-purple-400" />
+            </div>
+            <div>
+              <div className="text-sm font-black text-white">
+                {expiredNotice} item{expiredNotice > 1 ? 's' : ''} moved to Raffle!
+              </div>
+              <div className="text-xs text-purple-400">Tap to view the Raffle page →</div>
+            </div>
+            <button
+              onClick={(e) => { e.stopPropagation(); setExpiredNotice(0); }}
+              className="text-gray-600 hover:text-white ml-2"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ══════════════════════════════════════════════
           SIDEBAR — desktop only
