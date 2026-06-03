@@ -104,7 +104,26 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
 
   const [forceChecking, setForceChecking] = useState(false);
 
-  const handleForceCheck = async () => {
+  const showToast = useCallback((msg: string, type: 'success' | 'error' | 'warning' = 'success') => {
+    setToast({ message: msg, type });
+    setTimeout(() => setToast(null), 4500);
+  }, []);
+
+  const loadRaffles = useCallback(async () => {
+    try {
+      setLoading(true);
+      await expireShopItems();
+      const data = await getRaffles();
+      setRaffles(data);
+    } catch (err) {
+      console.error(err);
+      showToast('Failed to load raffles', 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, [showToast]);
+
+  const handleForceCheck = useCallback(async () => {
     setForceChecking(true);
     try {
       const count = await expireShopItems();
@@ -116,25 +135,7 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
       }
     } catch { showToast('Check failed', 'error'); }
     finally { setForceChecking(false); }
-  };
-    setToast({ message: msg, type });
-    setTimeout(() => setToast(null), 4500);
-  }, []);
-
-  const loadRaffles = useCallback(async () => {
-    try {
-      setLoading(true);
-      // Transfer any newly expired shop items before loading raffles
-      await expireShopItems();
-      const data = await getRaffles();
-      setRaffles(data);
-    } catch (err) {
-      console.error(err);
-      showToast('Failed to load raffles', 'error');
-    } finally {
-      setLoading(false);
-    }
-  }, [showToast]);
+  }, [showToast, loadRaffles]);
 
   const loadEntries = useCallback(async (raffleId: number) => {
     try {
