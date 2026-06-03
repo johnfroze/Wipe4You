@@ -131,10 +131,13 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
         showToast(`${count} expired item${count > 1 ? 's' : ''} transferred to raffle!`, 'success');
         await loadRaffles();
       } else {
-        showToast('No expired items found to transfer', 'warning');
+        // Check if there are expired items that are already transferred
+        showToast('No new expired items to transfer — check browser console for details', 'warning');
       }
-    } catch { showToast('Check failed', 'error'); }
-    finally { setForceChecking(false); }
+    } catch (err: any) {
+      console.error('[handleForceCheck]', err);
+      showToast(`Error: ${err?.message || 'Check failed — see console'}`, 'error');
+    } finally { setForceChecking(false); }
   }, [showToast, loadRaffles]);
 
   const loadEntries = useCallback(async (raffleId: number) => {
