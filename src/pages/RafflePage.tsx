@@ -5,7 +5,7 @@ import {
 } from '@/lib/supabase';
 import type { CurrentUser, Raffle, RaffleEntry } from '@/types';
 import {
-  Ticket, Plus, Trash2, Trophy, Users, Zap,
+  Ticket, Plus, Trash2, Trophy, Users,
   X, CheckCircle2, AlertTriangle, Loader2,
   ChevronDown, ChevronUp, Shuffle, Clock,
   Package, CalendarClock, ShieldAlert,
