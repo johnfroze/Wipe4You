@@ -58,7 +58,8 @@ export interface ShopItem {
   created_at: string;
   updated_at: string;
   is_active: boolean;
-  expires_at: string | null;   // ISO timestamp, null = never expires
+  expires_at: string | null;
+  transferred_to_raffle: boolean;
 }
 
 // ── Raffle ───────────────────────────────────────────────
