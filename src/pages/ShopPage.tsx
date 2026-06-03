@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
-import { getShopItems, uploadShopImage, supabase } from '@/lib/supabase';
+import { getShopItems, uploadShopImage, supabase, expireShopItems } from '@/lib/supabase';
 import type { CurrentUser, ShopItem } from '@/types';
 import {
   ShoppingBag, Plus, Package, Search, Filter,
   X, CheckCircle2, AlertTriangle, Pencil, Trash2,
-  Loader2, Lock, ShieldAlert, Timer, CalendarClock,
+  Loader2, Lock, ShieldAlert, Timer, CalendarClock, Ticket,
 } from 'lucide-react';
 
 interface Props {
@@ -225,6 +225,14 @@ export function ShopPage({ currentUser, onDkpChange }: Props) {
   }, []);
 
   useEffect(() => {
+    // Run expiry check first — transfers any expired items to raffles,
+    // then load the shop so transferred items are already marked
+    expireShopItems().then((count) => {
+      if (count > 0) {
+        showToast(`${count} expired item${count > 1 ? 's' : ''} moved to Raffle`, 'success');
+      }
+    });
+
     Promise.all([loadItems(), loadShopSettings()]).finally(() => setLoading(false));
 
     const itemsChannel = supabase
@@ -565,6 +573,7 @@ export function ShopPage({ currentUser, onDkpChange }: Props) {
             const now = Date.now();
             const expiresAt = item.expires_at ? new Date(item.expires_at).getTime() : null;
             const isExpired = expiresAt !== null && now > expiresAt;
+            const isTransferred = item.transferred_to_raffle === true;
             const msLeft = expiresAt !== null ? Math.max(0, expiresAt - now) : null;
             const hoursLeft = msLeft !== null ? msLeft / 3600000 : null;
             const expiryLabel = msLeft === null ? null
@@ -577,7 +586,7 @@ export function ShopPage({ currentUser, onDkpChange }: Props) {
               : hoursLeft! < 2 ? 'timer-urgent'
               : hoursLeft! < 24 ? 'timer-warning'
               : 'text-gray-500';
-            const isDisabled = outOfStock || isExpired;
+            const isDisabled = outOfStock || isExpired || isTransferred;
 
             return (
               <div key={item.id}
@@ -590,8 +599,18 @@ export function ShopPage({ currentUser, onDkpChange }: Props) {
                   ) : (
                     <Package size={64} className="text-gray-600" />
                   )}
-                  {/* Expired overlay */}
-                  {isExpired && (
+                  {/* Transferred to raffle overlay */}
+                  {isTransferred && (
+                    <div className="absolute inset-0 bg-black/75 flex flex-col items-center justify-center gap-1.5">
+                      <Ticket size={22} className="text-purple-400" />
+                      <span className="text-purple-400 font-black text-sm border border-purple-500/40 bg-purple-500/10 px-3 py-1 rounded-full">
+                        IN RAFFLE
+                      </span>
+                      <span className="text-gray-500 text-xs">Check the Raffle page</span>
+                    </div>
+                  )}
+                  {/* Expired overlay (not transferred yet) */}
+                  {!isTransferred && isExpired && (
                     <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center gap-1">
                       <Timer size={20} className="text-red-400" />
                       <span className="text-red-400 font-black text-sm border border-red-500/40 bg-red-500/10 px-3 py-1 rounded-full">
@@ -653,6 +672,8 @@ export function ShopPage({ currentUser, onDkpChange }: Props) {
                     >
                       {isBuying
                         ? <><Loader2 size={14} className="animate-spin" /> Buying...</>
+                        : isTransferred
+                        ? <><Ticket size={14} /> In Raffle</>
                         : isExpired
                         ? <><Timer size={14} /> Expired</>
                         : outOfStock

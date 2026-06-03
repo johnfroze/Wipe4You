@@ -1,11 +1,12 @@
-import { useState, useCallback } from 'react';
-import { updateMemberDkp, updateMemberRole, updateMemberUsername, deleteMember, createDkpLog } from '@/lib/supabase';
+import { useState, useCallback, useEffect } from 'react';
+import { updateMemberDkp, updateMemberRole, updateMemberUsername, deleteMember, createDkpLog, getDefaultRaffleTicketPrice, setDefaultRaffleTicketPrice } from '@/lib/supabase';
 import type { Member, CurrentUser } from '@/types';
 import { MemberProfileModal } from './MemberProfileModal';
 import {
   Shield, Crown, Star, User, Plus, Minus,
   Edit3, Trash2, Search, CheckCircle2,
   AlertTriangle, X, Loader2, Check, ExternalLink,
+  Ticket, Settings,
 } from 'lucide-react';
 
 interface Props {
@@ -58,6 +59,9 @@ const roleConfig = {
 
 export function AdminPage({ members, onMembersChange, currentUser }: Props) {
   const [search, setSearch] = useState('');
+  const [raffleTicketPrice, setRaffleTicketPrice] = useState<number>(10);
+  const [raffleTicketInput, setRaffleTicketInput] = useState('');
+  const [savingRafflePrice, setSavingRafflePrice] = useState(false);
   const [editingDkp, setEditingDkp] = useState<Record<string, boolean>>({});
   const [dkpInputs, setDkpInputs] = useState<Record<string, string>>({});
   const [reasonInputs, setReasonInputs] = useState<Record<string, string>>({});
@@ -69,6 +73,26 @@ export function AdminPage({ members, onMembersChange, currentUser }: Props) {
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   const adminName = currentUser?.member.username || 'Admin';
+
+  // Load default raffle ticket price on mount
+  useEffect(() => {
+    getDefaultRaffleTicketPrice().then((price) => {
+      setRaffleTicketPrice(price);
+      setRaffleTicketInput(String(price));
+    });
+  }, []);
+
+  const handleSaveRafflePrice = async () => {
+    const price = parseInt(raffleTicketInput);
+    if (isNaN(price) || price <= 0) { showToast('Enter a valid price > 0', 'error'); return; }
+    setSavingRafflePrice(true);
+    try {
+      await setDefaultRaffleTicketPrice(price);
+      setRaffleTicketPrice(price);
+      showToast(`Default raffle ticket price set to ${price} DKP`, 'success');
+    } catch { showToast('Failed to save', 'error'); }
+    finally { setSavingRafflePrice(false); }
+  };
 
   const showToast = useCallback((message: string, type: 'success' | 'error') => {
     setToast({ message, type });
@@ -207,6 +231,46 @@ export function AdminPage({ members, onMembersChange, currentUser }: Props) {
             placeholder="Search members..."
             className="w-full pl-9 pr-4 py-2.5 bg-black/60 border border-[#1e2d3d] rounded-xl text-sm focus:border-cyan-500/50 focus:outline-none"
           />
+        </div>
+      </div>
+
+      {/* ── Raffle Settings ── */}
+      <div className="card p-5">
+        <h2 className="font-bold text-sm text-gray-400 uppercase tracking-wider flex items-center gap-2 mb-4">
+          <Settings size={14} className="text-cyan-400" /> Raffle Settings
+        </h2>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+          <div className="flex-1">
+            <label className="text-xs text-gray-500 mb-1 block">
+              Default Ticket Price (DKP)
+            </label>
+            <p className="text-xs text-gray-600 mb-2">
+              Applied to all raffles auto-created when shop items expire.
+              Currently: <span className="text-purple-400 font-bold">{raffleTicketPrice} DKP</span>
+            </p>
+            <div className="flex gap-2">
+              <div className="relative">
+                <Ticket size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-600" />
+                <input
+                  type="number"
+                  min="1"
+                  value={raffleTicketInput}
+                  onChange={(e) => setRaffleTicketInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSaveRafflePrice()}
+                  placeholder="DKP per ticket"
+                  className="pl-9 pr-4 py-2.5 bg-black/60 border border-[#1e2d3d] rounded-xl text-sm focus:border-cyan-500/50 focus:outline-none w-44"
+                />
+              </div>
+              <button
+                onClick={handleSaveRafflePrice}
+                disabled={savingRafflePrice}
+                className="btn-primary flex items-center gap-2 disabled:opacity-50"
+              >
+                {savingRafflePrice ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                Save
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   supabase, getRaffles, createRaffle, updateRaffle,
   deleteRaffle, getRaffleEntries, enterRaffle, drawRaffleWinner,
+  expireShopItems,
 } from '@/lib/supabase';
 import type { CurrentUser, Raffle, RaffleEntry } from '@/types';
 import {
@@ -109,6 +110,8 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
   const loadRaffles = useCallback(async () => {
     try {
       setLoading(true);
+      // Transfer any newly expired shop items before loading raffles
+      await expireShopItems();
       const data = await getRaffles();
       setRaffles(data);
     } catch (err) {
