@@ -12,28 +12,38 @@ import { DkpLogPage } from '@/pages/DkpLogPage';
 import HomePage from './pages/HomePage';
 import {
   Shield, LogOut, ShoppingBag, ScrollText,
-  Package, Gavel, Clock, Menu, X, Zap, AlertTriangle,
-  Megaphone, ClipboardList,
+  Package, Gavel, Clock, Zap, AlertTriangle,
+  Megaphone, ClipboardList, ChevronLeft, ChevronRight,
+  Crown, Star, User,
 } from 'lucide-react';
 import './App.css';
 
 type PageId = 'attendance' | 'auctions' | 'shop' | 'shop-log' | 'my-history' | 'admin' | 'announcements' | 'dkp-log';
 
+// ── Nav section separator ──────────────────────────────────
+function NavSection({ label }: { label: string }) {
+  return (
+    <div className="px-3 pt-4 pb-1">
+      <span className="text-[10px] font-black uppercase tracking-widest text-gray-700">{label}</span>
+    </div>
+  );
+}
+
 function App() {
   const { currentUser, loading, isAdmin, authError } = useAuth();
   const { members, loadMembers } = useMembers();
 
-  const [page, setPage] = useState<PageId>('attendance');
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [page, setPage] = useState<PageId>('announcements');
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [auctionNotifications, setAuctionNotifications] = useState(0);
   const [liveDkp, setLiveDkp] = useState(0);
 
-  // Sync DKP from currentUser on mount
+  // Sync DKP
   useEffect(() => {
     if (currentUser?.member) setLiveDkp(currentUser.member.dkp);
   }, [currentUser]);
 
-  // Realtime: current user's own DKP (instant navbar update)
+  // Realtime: own DKP
   useEffect(() => {
     if (!currentUser?.member?.id) return;
     const channel = supabase
@@ -48,17 +58,14 @@ function App() {
     return () => { supabase.removeChannel(channel); };
   }, [currentUser]);
 
-  // Realtime: ALL member changes → reload members list so
-  // attendance, leaderboard and admin panel stay in sync
+  // Realtime: all members
   useEffect(() => {
     if (!currentUser) return;
-    const unsubscribe = subscribeMembersRealtime(() => {
-      loadMembers();
-    });
+    const unsubscribe = subscribeMembersRealtime(() => { loadMembers(); });
     return () => { unsubscribe(); };
   }, [currentUser, loadMembers]);
 
-  // Realtime: auction activity badge on nav
+  // Realtime: auction badge
   useEffect(() => {
     const channel = supabase
       .channel('auction-realtime-app')
@@ -76,34 +83,28 @@ function App() {
     if (data?.dkp !== undefined) setLiveDkp(data.dkp);
   };
 
-  // ── Keyboard shortcuts ──
-  // 1=News 2=Attendance 3=Auctions 4=Shop 5=Purchases
-  // / = focus search (if page has one)
+  // Keyboard shortcuts
   useEffect(() => {
     if (!currentUser) return;
-    const shortcutMap: Record<string, PageId> = {
-      '1': 'announcements',
-      '2': 'attendance',
-      '3': 'auctions',
-      '4': 'shop',
-      '5': 'my-history',
+    const map: Record<string, PageId> = {
+      '1': 'announcements', '2': 'attendance', '3': 'auctions',
+      '4': 'shop', '5': 'my-history',
       '6': isAdmin ? 'dkp-log' : 'my-history',
       '7': isAdmin ? 'shop-log' : 'my-history',
       '8': isAdmin ? 'admin' : 'my-history',
     };
     const handler = (e: KeyboardEvent) => {
-      // Ignore when typing in an input/textarea
       const tag = (e.target as HTMLElement).tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
-      const dest = shortcutMap[e.key];
-      if (dest) { setPage(dest); setMobileMenuOpen(false); }
+      const dest = map[e.key];
+      if (dest) setPage(dest);
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [currentUser, isAdmin]);
 
-  // ── Loading ──
+  // ── Loading ──────────────────────────────────────────────
   if (loading) {
     return (
       <div className="min-h-screen loading-screen text-white flex flex-col items-center justify-center gap-6">
@@ -114,16 +115,14 @@ function App() {
           </div>
         </div>
         <div className="text-center">
-          <p className="text-cyan-400 font-bold tracking-widest text-sm uppercase hud-number">
-            Initializing
-          </p>
+          <p className="text-cyan-400 font-bold tracking-widest text-sm uppercase hud-number">Initializing</p>
           <p className="text-gray-600 text-xs mt-1">Wipe4You Dashboard</p>
         </div>
       </div>
     );
   }
 
-  // ── Auth error (not in guild Discord) ──
+  // ── Auth error ───────────────────────────────────────────
   if (authError) {
     return (
       <div className="min-h-screen bg-[#050508] text-white flex flex-col items-center justify-center gap-6 p-6">
@@ -134,194 +133,354 @@ function App() {
           <h2 className="text-xl font-black mb-2">Access Denied</h2>
           <p className="text-gray-400 text-sm leading-relaxed">{authError}</p>
         </div>
-        <button
-          onClick={signInWithDiscord}
-          className="btn-primary flex items-center gap-2 mt-2"
-        >
-          Try Again
-        </button>
+        <button onClick={signInWithDiscord} className="btn-primary mt-2">Try Again</button>
       </div>
     );
   }
 
-  // ── Login page ──
+  // ── Login ────────────────────────────────────────────────
   if (!currentUser) return <HomePage onLogin={signInWithDiscord} />;
-
-  const navItems: { id: PageId; label: string; icon: React.ReactNode; admin?: boolean; kbd?: string }[] = [
-    { id: 'announcements', label: 'News',         icon: <Megaphone size={16} />,     kbd: '1' },
-    { id: 'attendance',    label: 'Attendance',   icon: <Clock size={16} />,         kbd: '2' },
-    { id: 'auctions',      label: 'Auctions',     icon: <Gavel size={16} />,         kbd: '3' },
-    { id: 'shop',          label: 'DKP Shop',     icon: <ShoppingBag size={16} />,   kbd: '4' },
-    { id: 'my-history',    label: 'My Purchases', icon: <Package size={16} />,       kbd: '5' },
-    { id: 'dkp-log',       label: 'DKP Log',      icon: <ClipboardList size={16} />, admin: true, kbd: '6' },
-    { id: 'shop-log',      label: 'Shop Log',     icon: <ScrollText size={16} />,    admin: true, kbd: '7' },
-    { id: 'admin',         label: 'Admin',        icon: <Shield size={16} />,        admin: true, kbd: '8' },
-  ];
-
-  const visibleNavItems = navItems.filter((i) => !i.admin || isAdmin);
 
   const navigate = (id: PageId) => {
     if (page === id) { window.location.reload(); return; }
     setPage(id);
-    setMobileMenuOpen(false);
-    if (id === 'attendance') loadMembers();
     if (id === 'auctions') setAuctionNotifications(0);
   };
 
-  const roleColor = currentUser.member.role === 'leader'
-    ? 'text-yellow-400' : currentUser.member.role === 'elder'
-    ? 'text-purple-400' : 'text-gray-500';
+  const roleConfig = {
+    leader: { icon: Crown, color: 'text-yellow-400', label: 'Leader' },
+    elder:  { icon: Star,  color: 'text-purple-400', label: 'Elder'  },
+    member: { icon: User,  color: 'text-gray-500',   label: 'Member' },
+  };
+  const rc = roleConfig[currentUser.member.role];
+  const RoleIcon = rc.icon;
+
+  // Nav items split into sections
+  const memberNav: { id: PageId; label: string; icon: React.ReactNode; kbd: string; badge?: number }[] = [
+    { id: 'announcements', label: 'News',         icon: <Megaphone size={18} />,   kbd: '1' },
+    { id: 'attendance',    label: 'Attendance',   icon: <Clock size={18} />,       kbd: '2' },
+    { id: 'auctions',      label: 'Auctions',     icon: <Gavel size={18} />,       kbd: '3', badge: auctionNotifications },
+    { id: 'shop',          label: 'DKP Shop',     icon: <ShoppingBag size={18} />, kbd: '4' },
+    { id: 'my-history',    label: 'My Purchases', icon: <Package size={18} />,     kbd: '5' },
+  ];
+
+  const adminNav: { id: PageId; label: string; icon: React.ReactNode; kbd: string }[] = [
+    { id: 'dkp-log',  label: 'DKP Log',  icon: <ClipboardList size={18} />, kbd: '6' },
+    { id: 'shop-log', label: 'Shop Log', icon: <ScrollText size={18} />,    kbd: '7' },
+    { id: 'admin',    label: 'Admin',    icon: <Shield size={18} />,        kbd: '8' },
+  ];
+
+  // Bottom tab bar items (mobile — max 5)
+  const bottomTabs = [
+    { id: 'announcements' as PageId, icon: <Megaphone size={20} />, label: 'News' },
+    { id: 'attendance'    as PageId, icon: <Clock size={20} />,       label: 'Attend' },
+    { id: 'auctions'      as PageId, icon: <Gavel size={20} />,       label: 'Auctions', badge: auctionNotifications },
+    { id: 'shop'          as PageId, icon: <ShoppingBag size={20} />, label: 'Shop' },
+    { id: 'my-history'    as PageId, icon: <Package size={20} />,     label: 'Mine' },
+  ];
+
+  // Sidebar nav button
+  const SidebarBtn = ({
+    id, label, icon, kbd, badge,
+  }: { id: PageId; label: string; icon: React.ReactNode; kbd?: string; badge?: number }) => {
+    const active = page === id;
+    return (
+      <button
+        onClick={() => navigate(id)}
+        title={sidebarCollapsed ? label : undefined}
+        className={`
+          w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-150 relative group
+          ${active
+            ? 'bg-cyan-500/12 text-cyan-400 border border-cyan-500/25 shadow-[0_0_12px_#00d4ff08]'
+            : 'text-gray-500 hover:text-gray-200 hover:bg-white/5 border border-transparent'
+          }
+        `}
+      >
+        {/* Active indicator bar */}
+        {active && (
+          <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-cyan-400 rounded-r-full" />
+        )}
+
+        <span className={`shrink-0 ${active ? 'text-cyan-400' : 'text-gray-600 group-hover:text-gray-300'} transition-colors`}>
+          {icon}
+        </span>
+
+        {!sidebarCollapsed && (
+          <>
+            <span className={`text-sm font-semibold truncate flex-1 text-left ${active ? 'text-white' : ''}`}>
+              {label}
+            </span>
+            {kbd && !active && (
+              <span className="kbd opacity-0 group-hover:opacity-100 transition-opacity">{kbd}</span>
+            )}
+            {badge !== undefined && badge > 0 && (
+              <span className="bg-red-500 text-white text-[10px] font-black rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
+                {badge}
+              </span>
+            )}
+          </>
+        )}
+
+        {/* Collapsed badge dot */}
+        {sidebarCollapsed && badge !== undefined && badge > 0 && (
+          <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-red-500" />
+        )}
+
+        {/* Collapsed tooltip */}
+        {sidebarCollapsed && (
+          <span className="absolute left-full ml-3 px-2.5 py-1.5 bg-[#0d1117] border border-[#1e2d3d] rounded-lg text-xs font-semibold text-white whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 shadow-xl">
+            {label}
+            {kbd && <span className="ml-2 kbd">{kbd}</span>}
+          </span>
+        )}
+      </button>
+    );
+  };
 
   return (
-    <div className="min-h-screen bg-[#050508] text-white font-sans">
+    <div className="min-h-screen bg-[#050508] text-white flex">
 
-      {/* ── Navbar ── */}
-      <nav className="border-b border-[#1e2d3d] sticky top-0 z-40 bg-[#050508]/95 backdrop-blur-md">
-        <div className="h-[2px] bg-gradient-to-r from-transparent via-cyan-400/60 to-transparent" />
+      {/* ══════════════════════════════════════════════
+          SIDEBAR — desktop only
+      ══════════════════════════════════════════════ */}
+      <aside className={`
+        hidden lg:flex flex-col shrink-0 h-screen sticky top-0
+        bg-[#07090f] border-r border-[#1e2d3d]
+        transition-all duration-200 ease-in-out
+        ${sidebarCollapsed ? 'w-[64px]' : 'w-[220px]'}
+      `}>
 
-        <div className="max-w-7xl mx-auto px-4 py-3">
-          <div className="flex justify-between items-center">
+        {/* Top accent */}
+        <div className="h-[2px] bg-gradient-to-r from-transparent via-cyan-400/50 to-transparent shrink-0" />
 
-            {/* Left: logo + mobile toggle */}
-            <div className="flex items-center gap-4">
-              <button
-                className="lg:hidden text-gray-500 hover:text-cyan-400 transition-colors p-1"
-                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              >
-                {mobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
-              </button>
+        {/* Logo */}
+        <div className={`flex items-center gap-3 px-4 py-4 shrink-0 ${sidebarCollapsed ? 'justify-center px-2' : ''}`}>
+          <div className="w-8 h-8 rounded-lg bg-cyan-400/10 border border-cyan-400/20 flex items-center justify-center shrink-0">
+            <Shield size={15} className="text-cyan-400" />
+          </div>
+          {!sidebarCollapsed && (
+            <div className="min-w-0">
+              <div className="font-black text-sm tracking-wide leading-none">
+                WIPE<span className="text-cyan-400">4</span>YOU
+              </div>
+              <div className="text-[9px] text-gray-700 tracking-widest uppercase mt-0.5">
+                Guild Dashboard
+              </div>
+            </div>
+          )}
+        </div>
 
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-cyan-400/10 border border-cyan-400/20 flex items-center justify-center">
-                  <Shield size={16} className="text-cyan-400" />
+        <div className="hud-divider mx-3" />
+
+        {/* Scrollable nav */}
+        <div className="flex-1 overflow-y-auto overflow-x-hidden py-2 px-2 space-y-0.5">
+
+          {!sidebarCollapsed && <NavSection label="Menu" />}
+          {memberNav.map((item) => (
+            <SidebarBtn key={item.id} {...item} />
+          ))}
+
+          {isAdmin && (
+            <>
+              {!sidebarCollapsed && <NavSection label="Admin" />}
+              {sidebarCollapsed && <div className="my-2 mx-2 hud-divider" />}
+              {adminNav.map((item) => (
+                <SidebarBtn key={item.id} {...item} />
+              ))}
+            </>
+          )}
+        </div>
+
+        <div className="hud-divider mx-3" />
+
+        {/* User card */}
+        <div className={`p-3 shrink-0 ${sidebarCollapsed ? 'flex justify-center' : ''}`}>
+          {sidebarCollapsed ? (
+            <div className="relative group">
+              <img
+                src={currentUser.user.user_metadata.avatar_url}
+                alt=""
+                className="w-9 h-9 rounded-full border-2 border-[#1e2d3d] cursor-pointer"
+              />
+              {/* Tooltip */}
+              <div className="absolute left-full ml-3 bottom-0 bg-[#0d1117] border border-[#1e2d3d] rounded-xl p-3 opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 shadow-xl whitespace-nowrap">
+                <div className="font-bold text-sm">{currentUser.user.user_metadata.full_name}</div>
+                <div className={`text-xs font-bold ${rc.color} flex items-center gap-1 mt-0.5`}>
+                  <RoleIcon size={10} />{rc.label}
                 </div>
-                <div className="hidden sm:block">
-                  <span className="font-black text-base tracking-wide text-white">
-                    WIPE<span className="text-cyan-400">4</span>YOU
-                  </span>
-                  <div className="text-[10px] text-gray-600 tracking-widest uppercase -mt-0.5">
-                    Guild Dashboard
-                  </div>
+                <div className="flex items-center gap-1 mt-1 text-cyan-400 font-black text-xs hud-number">
+                  <Zap size={10} />{liveDkp.toLocaleString()} DKP
                 </div>
               </div>
             </div>
+          ) : (
+            <div className="flex items-center gap-2.5 p-2 rounded-xl bg-black/30 border border-[#1a2234]">
+              <img
+                src={currentUser.user.user_metadata.avatar_url}
+                alt=""
+                className="w-8 h-8 rounded-full border border-[#1e2d3d] shrink-0"
+              />
+              <div className="flex-1 min-w-0">
+                <div className="text-xs font-bold truncate leading-tight">
+                  {currentUser.user.user_metadata.full_name}
+                </div>
+                <div className={`text-[10px] font-bold flex items-center gap-1 mt-0.5 ${rc.color}`}>
+                  <RoleIcon size={9} />{rc.label}
+                </div>
+                <div className="flex items-center gap-1 mt-0.5 text-cyan-400 font-black text-[11px] hud-number tabular-nums">
+                  <Zap size={9} />{liveDkp.toLocaleString()} DKP
+                </div>
+              </div>
+              <button
+                onClick={signOut}
+                className="text-gray-700 hover:text-red-400 transition-colors p-1.5 hover:bg-red-400/8 rounded-lg shrink-0"
+                title="Logout"
+              >
+                <LogOut size={14} />
+              </button>
+            </div>
+          )}
 
-            {/* Center: desktop nav */}
-            <div className="hidden lg:flex items-center gap-1">
-              {visibleNavItems.map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => navigate(item.id)}
-                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl transition-all text-sm font-medium relative ${
-                    page === item.id
-                      ? 'nav-active'
-                      : 'text-gray-500 hover:text-gray-200 hover:bg-white/5'
-                  }`}
-                >
-                  {item.icon}
-                  <span>{item.label}</span>
-                  {item.kbd && page !== item.id && (
-                    <span className="kbd hidden xl:inline-flex">{item.kbd}</span>
-                  )}
-                  {item.id === 'auctions' && auctionNotifications > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
-                      {auctionNotifications}
-                    </span>
-                  )}
-                </button>
-              ))}
+          {/* Sign out when collapsed */}
+          {sidebarCollapsed && (
+            <button
+              onClick={signOut}
+              className="mt-2 w-full flex items-center justify-center p-2 rounded-xl text-gray-700 hover:text-red-400 hover:bg-red-400/8 transition-all"
+              title="Logout"
+            >
+              <LogOut size={15} />
+            </button>
+          )}
+        </div>
+
+        {/* Collapse toggle */}
+        <button
+          onClick={() => setSidebarCollapsed((v) => !v)}
+          className="absolute -right-3 top-20 w-6 h-6 rounded-full bg-[#0d1117] border border-[#1e2d3d] flex items-center justify-center text-gray-500 hover:text-cyan-400 hover:border-cyan-500/40 transition-all shadow-lg z-10"
+        >
+          {sidebarCollapsed ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}
+        </button>
+      </aside>
+
+      {/* ══════════════════════════════════════════════
+          MAIN CONTENT
+      ══════════════════════════════════════════════ */}
+      <div className="flex-1 flex flex-col min-w-0">
+
+        {/* ── Mobile topbar ── */}
+        <header className="lg:hidden sticky top-0 z-40 bg-[#07090f]/95 backdrop-blur-md border-b border-[#1e2d3d] shrink-0">
+          <div className="h-[2px] bg-gradient-to-r from-transparent via-cyan-400/50 to-transparent" />
+          <div className="flex items-center justify-between px-4 py-3">
+
+            {/* Logo */}
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-cyan-400/10 border border-cyan-400/20 flex items-center justify-center">
+                <Shield size={13} className="text-cyan-400" />
+              </div>
+              <span className="font-black text-sm tracking-wide">
+                WIPE<span className="text-cyan-400">4</span>YOU
+              </span>
             </div>
 
-            {/* Right: user info */}
+            {/* Right: DKP + avatar + logout */}
             <div className="flex items-center gap-2">
-              <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-cyan-400/8 border border-cyan-400/20">
-                <Zap size={13} className="text-cyan-400" />
-                <span className="text-cyan-400 font-bold text-sm hud-number tabular-nums">
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-cyan-400/8 border border-cyan-400/20">
+                <Zap size={11} className="text-cyan-400" />
+                <span className="text-cyan-400 font-black text-xs hud-number tabular-nums">
                   {liveDkp.toLocaleString()}
                 </span>
-                <span className="text-cyan-700 text-xs font-bold">DKP</span>
+                <span className="text-cyan-700 text-[10px] font-bold">DKP</span>
               </div>
-
               <img
                 src={currentUser.user.user_metadata.avatar_url}
                 alt=""
                 className="w-8 h-8 rounded-full border-2 border-[#1e2d3d]"
               />
-
-              <div className="hidden md:block text-right">
-                <div className="text-sm font-semibold leading-tight truncate max-w-[100px]">
-                  {currentUser.user.user_metadata.full_name}
-                </div>
-                <div className={`text-[10px] font-bold uppercase tracking-wider ${roleColor}`}>
-                  {currentUser.member.role}
-                </div>
-              </div>
-
-              <button
-                onClick={signOut}
-                className="text-gray-600 hover:text-red-400 transition-colors p-2 hover:bg-red-400/8 rounded-xl ml-1"
-                title="Logout"
-              >
-                <LogOut size={16} />
+              <button onClick={signOut}
+                className="text-gray-600 hover:text-red-400 transition-colors p-1.5 hover:bg-red-400/8 rounded-lg">
+                <LogOut size={15} />
               </button>
             </div>
           </div>
+        </header>
 
-          {/* Mobile menu */}
-          {mobileMenuOpen && (
-            <div className="lg:hidden mt-3 pt-3 border-t border-[#1e2d3d] flex flex-col gap-1 animate-fade-in">
-              <div className="flex items-center gap-2 px-3 py-2 mb-1">
-                <Zap size={14} className="text-cyan-400" />
-                <span className="text-cyan-400 font-bold hud-number">{liveDkp.toLocaleString()} DKP</span>
-                <span className={`text-xs font-bold uppercase ml-auto ${roleColor}`}>
-                  {currentUser.member.role}
+        {/* ── Page content ── */}
+        <main className="flex-1 overflow-auto">
+          <div className="max-w-7xl mx-auto px-4 py-6 pb-24 lg:pb-6">
+            {page === 'announcements' && <AnnouncementsPage currentUser={currentUser} />}
+            {page === 'attendance'    && <AttendancePage currentUser={currentUser} members={members} onMembersChange={loadMembers} />}
+            {page === 'auctions'      && <AuctionsPage currentUser={currentUser} members={members} onMembersChange={loadMembers} />}
+            {page === 'shop'          && <ShopPage currentUser={currentUser} onDkpChange={refreshDkp} />}
+            {page === 'my-history'    && <MyHistoryPage buyerId={currentUser.member.id} />}
+            {page === 'shop-log'      && isAdmin && <ShopLogPage />}
+            {page === 'dkp-log'       && isAdmin && <DkpLogPage currentUser={currentUser} />}
+            {page === 'admin'         && isAdmin && <AdminPage members={members} onMembersChange={loadMembers} currentUser={currentUser} />}
+          </div>
+        </main>
+      </div>
+
+      {/* ══════════════════════════════════════════════
+          BOTTOM TAB BAR — mobile only
+      ══════════════════════════════════════════════ */}
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#07090f]/95 backdrop-blur-md border-t border-[#1e2d3d]">
+        {/* Bottom accent */}
+        <div className="h-[1px] bg-gradient-to-r from-transparent via-cyan-400/30 to-transparent" />
+
+        <div className="flex items-stretch">
+          {bottomTabs.map((tab) => {
+            const active = page === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => navigate(tab.id)}
+                className={`flex-1 flex flex-col items-center justify-center gap-1 py-2.5 relative transition-all ${
+                  active ? 'text-cyan-400' : 'text-gray-600 hover:text-gray-400'
+                }`}
+              >
+                {/* Active top glow line */}
+                {active && (
+                  <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-cyan-400 rounded-b-full" />
+                )}
+
+                <span className={`transition-transform ${active ? 'scale-110' : ''}`}>
+                  {tab.icon}
                 </span>
-              </div>
-              {visibleNavItems.map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => navigate(item.id)}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-sm font-medium ${
-                    page === item.id ? 'nav-active' : 'text-gray-400 hover:text-white hover:bg-white/5'
-                  }`}
-                >
-                  {item.icon}
-                  <span>{item.label}</span>
-                  {item.id === 'auctions' && auctionNotifications > 0 && (
-                    <span className="ml-auto bg-red-500 text-white text-xs font-bold rounded-full px-2 py-0.5">
-                      {auctionNotifications}
-                    </span>
-                  )}
-                </button>
-              ))}
-            </div>
+                <span className={`text-[10px] font-bold ${active ? 'text-cyan-400' : 'text-gray-600'}`}>
+                  {tab.label}
+                </span>
+
+                {/* Badge */}
+                {tab.badge !== undefined && tab.badge > 0 && (
+                  <span className="absolute top-1.5 right-1/4 bg-red-500 text-white text-[9px] font-black rounded-full min-w-[14px] h-[14px] flex items-center justify-center px-0.5">
+                    {tab.badge}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+
+          {/* Admin overflow tab — only shown on mobile if admin */}
+          {isAdmin && (
+            <button
+              onClick={() => navigate('admin')}
+              className={`flex-shrink-0 px-3 flex flex-col items-center justify-center gap-1 py-2.5 relative transition-all ${
+                ['admin', 'shop-log', 'dkp-log'].includes(page)
+                  ? 'text-cyan-400' : 'text-gray-600 hover:text-gray-400'
+              }`}
+            >
+              {['admin', 'shop-log', 'dkp-log'].includes(page) && (
+                <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-cyan-400 rounded-b-full" />
+              )}
+              <Shield size={20} />
+              <span className="text-[10px] font-bold">Admin</span>
+            </button>
           )}
         </div>
+
+        {/* Safe area spacing for iPhone */}
+        <div className="h-safe-area-inset-bottom bg-[#07090f]" style={{ height: 'env(safe-area-inset-bottom)' }} />
       </nav>
 
-      {/* ── Main ── */}
-      <main className="max-w-7xl mx-auto px-4 py-6">
-        {page === 'announcements' && (
-          <AnnouncementsPage currentUser={currentUser} />
-        )}
-        {page === 'attendance' && (
-          <AttendancePage currentUser={currentUser} members={members} onMembersChange={loadMembers} />
-        )}
-        {page === 'auctions' && (
-          <AuctionsPage currentUser={currentUser} members={members} onMembersChange={loadMembers} />
-        )}
-        {page === 'shop' && (
-          <ShopPage currentUser={currentUser} onDkpChange={refreshDkp} />
-        )}
-        {page === 'shop-log' && isAdmin && <ShopLogPage />}
-        {page === 'dkp-log' && isAdmin && <DkpLogPage currentUser={currentUser} />}
-        {page === 'my-history' && (
-          <MyHistoryPage buyerId={currentUser.member.id} />
-        )}
-        {page === 'admin' && isAdmin && (
-          <AdminPage members={members} onMembersChange={loadMembers} currentUser={currentUser} />
-        )}
-      </main>
     </div>
   );
 }

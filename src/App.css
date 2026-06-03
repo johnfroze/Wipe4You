@@ -326,3 +326,51 @@ select:focus {
 .page-btn:hover   { border-color: #00d4ff44; color: #e2e8f0; }
 .page-btn.active  { background: #00d4ff15; border-color: #00d4ff44; color: #00d4ff; }
 .page-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+/* ─── Sidebar ────────────────────────────────────────────── */
+aside {
+  scrollbar-width: thin;
+  scrollbar-color: #1e2d3d transparent;
+}
+aside::-webkit-scrollbar       { width: 4px; }
+aside::-webkit-scrollbar-track { background: transparent; }
+aside::-webkit-scrollbar-thumb { background: #1e2d3d; border-radius: 2px; }
+
+/* Active sidebar item glow */
+.sidebar-active-glow {
+  box-shadow: inset 0 0 20px #00d4ff08;
+}
+
+/* ─── Bottom tab bar safe area ───────────────────────────── */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .bottom-tab-safe { padding-bottom: env(safe-area-inset-bottom); }
+}
+
+/* ─── Mobile: push content above bottom tab bar ──────────── */
+@media (max-width: 1023px) {
+  main { padding-bottom: 80px; }
+}
+
+/* ─── Sidebar collapse transition ───────────────────────────*/
+aside { transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
+
+/* ─── Nav tooltip (collapsed sidebar) ───────────────────────*/
+.sidebar-tooltip {
+  position: absolute;
+  left: calc(100% + 12px);
+  top: 50%;
+  transform: translateY(-50%);
+  background: #0d1117;
+  border: 1px solid #1e2d3d;
+  border-radius: 10px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #e2e8f0;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+  z-index: 100;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+}
