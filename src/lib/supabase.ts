@@ -704,9 +704,15 @@ export async function drawRaffleWinner(raffleId: number): Promise<string> {
 export async function expireShopItems(): Promise<number> {
   const { data, error } = await supabase.rpc('expire_shop_items');
   if (error) {
-    console.error('[expireShopItems]', error.message);
+    // Log full error so it shows in browser DevTools → Console
+    console.error('[expireShopItems] RPC error:', JSON.stringify(error));
+    // If the RPC doesn't exist yet, tell the developer clearly
+    if (error.code === 'PGRST202' || error.message?.includes('not exist')) {
+      console.error('[expireShopItems] The expire_shop_items() function does not exist in Supabase. Run DEBUG_EXPIRE.sql Step 5.');
+    }
     return 0;
   }
+  console.debug('[expireShopItems] transferred:', data);
   return (data as number) || 0;
 }
 
