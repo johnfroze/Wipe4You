@@ -9,16 +9,17 @@ import { ShopLogPage } from '@/pages/ShopLogPage';
 import { MyHistoryPage } from '@/pages/MyHistoryPage';
 import { AnnouncementsPage } from '@/pages/AnnouncementsPage';
 import { DkpLogPage } from '@/pages/DkpLogPage';
+import { RafflePage } from '@/pages/RafflePage';
 import HomePage from './pages/HomePage';
 import {
   Shield, LogOut, ShoppingBag, ScrollText,
   Package, Gavel, Clock, Zap, AlertTriangle,
   Megaphone, ClipboardList, ChevronLeft, ChevronRight,
-  Crown, Star, User,
+  Crown, Star, User, Ticket,
 } from 'lucide-react';
 import './App.css';
 
-type PageId = 'attendance' | 'auctions' | 'shop' | 'shop-log' | 'my-history' | 'admin' | 'announcements' | 'dkp-log';
+type PageId = 'attendance' | 'auctions' | 'shop' | 'shop-log' | 'my-history' | 'admin' | 'announcements' | 'dkp-log' | 'raffle';
 
 // ── Nav section separator ──────────────────────────────────
 function NavSection({ label }: { label: string }) {
@@ -88,10 +89,10 @@ function App() {
     if (!currentUser) return;
     const map: Record<string, PageId> = {
       '1': 'announcements', '2': 'attendance', '3': 'auctions',
-      '4': 'shop', '5': 'my-history',
-      '6': isAdmin ? 'dkp-log' : 'my-history',
-      '7': isAdmin ? 'shop-log' : 'my-history',
-      '8': isAdmin ? 'admin' : 'my-history',
+      '4': 'shop', '5': 'raffle', '6': 'my-history',
+      '7': isAdmin ? 'dkp-log' : 'my-history',
+      '8': isAdmin ? 'shop-log' : 'my-history',
+      '9': isAdmin ? 'admin' : 'my-history',
     };
     const handler = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement).tagName;
@@ -161,13 +162,14 @@ function App() {
     { id: 'attendance',    label: 'Attendance',   icon: <Clock size={18} />,       kbd: '2' },
     { id: 'auctions',      label: 'Auctions',     icon: <Gavel size={18} />,       kbd: '3', badge: auctionNotifications },
     { id: 'shop',          label: 'DKP Shop',     icon: <ShoppingBag size={18} />, kbd: '4' },
-    { id: 'my-history',    label: 'My Purchases', icon: <Package size={18} />,     kbd: '5' },
+    { id: 'raffle',        label: 'Raffle',       icon: <Ticket size={18} />,      kbd: '5' },
+    { id: 'my-history',    label: 'My Purchases', icon: <Package size={18} />,     kbd: '6' },
   ];
 
   const adminNav: { id: PageId; label: string; icon: React.ReactNode; kbd: string }[] = [
-    { id: 'dkp-log',  label: 'DKP Log',  icon: <ClipboardList size={18} />, kbd: '6' },
-    { id: 'shop-log', label: 'Shop Log', icon: <ScrollText size={18} />,    kbd: '7' },
-    { id: 'admin',    label: 'Admin',    icon: <Shield size={18} />,        kbd: '8' },
+    { id: 'dkp-log',  label: 'DKP Log',  icon: <ClipboardList size={18} />, kbd: '7' },
+    { id: 'shop-log', label: 'Shop Log', icon: <ScrollText size={18} />,    kbd: '8' },
+    { id: 'admin',    label: 'Admin',    icon: <Shield size={18} />,        kbd: '9' },
   ];
 
   // Bottom tab bar items (mobile — max 5)
@@ -176,7 +178,7 @@ function App() {
     { id: 'attendance'    as PageId, icon: <Clock size={20} />,       label: 'Attend' },
     { id: 'auctions'      as PageId, icon: <Gavel size={20} />,       label: 'Auctions', badge: auctionNotifications },
     { id: 'shop'          as PageId, icon: <ShoppingBag size={20} />, label: 'Shop' },
-    { id: 'my-history'    as PageId, icon: <Package size={20} />,     label: 'Mine' },
+    { id: 'raffle'        as PageId, icon: <Ticket size={20} />,      label: 'Raffle' },
   ];
 
   // Sidebar nav button
@@ -411,6 +413,7 @@ function App() {
             {page === 'attendance'    && <AttendancePage currentUser={currentUser} members={members} onMembersChange={loadMembers} />}
             {page === 'auctions'      && <AuctionsPage currentUser={currentUser} members={members} onMembersChange={loadMembers} />}
             {page === 'shop'          && <ShopPage currentUser={currentUser} onDkpChange={refreshDkp} />}
+            {page === 'raffle'        && <RafflePage currentUser={currentUser} onDkpChange={refreshDkp} />}
             {page === 'my-history'    && <MyHistoryPage buyerId={currentUser.member.id} />}
             {page === 'shop-log'      && isAdmin && <ShopLogPage />}
             {page === 'dkp-log'       && isAdmin && <DkpLogPage currentUser={currentUser} />}
@@ -464,11 +467,11 @@ function App() {
             <button
               onClick={() => navigate('admin')}
               className={`flex-shrink-0 px-3 flex flex-col items-center justify-center gap-1 py-2.5 relative transition-all ${
-                ['admin', 'shop-log', 'dkp-log'].includes(page)
+                ['admin', 'shop-log', 'dkp-log', 'my-history'].includes(page)
                   ? 'text-cyan-400' : 'text-gray-600 hover:text-gray-400'
               }`}
             >
-              {['admin', 'shop-log', 'dkp-log'].includes(page) && (
+              {['admin', 'shop-log', 'dkp-log', 'my-history'].includes(page) && (
                 <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-cyan-400 rounded-b-full" />
               )}
               <Shield size={20} />
