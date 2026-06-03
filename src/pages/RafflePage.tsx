@@ -9,7 +9,7 @@ import {
   Ticket, Plus, Trash2, Trophy, Users,
   X, CheckCircle2, AlertTriangle, Loader2,
   ChevronDown, ChevronUp, Shuffle, Clock,
-  Package, CalendarClock, ShieldAlert,
+  Package, CalendarClock, ShieldAlert, RefreshCw,
 } from 'lucide-react';
 
 interface Props {
@@ -102,7 +102,21 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
   const [formDrawAt, setFormDrawAt] = useState('');
   const [formSaving, setFormSaving] = useState(false);
 
-  const showToast = useCallback((msg: string, type: 'success' | 'error' | 'warning' = 'success') => {
+  const [forceChecking, setForceChecking] = useState(false);
+
+  const handleForceCheck = async () => {
+    setForceChecking(true);
+    try {
+      const count = await expireShopItems();
+      if (count > 0) {
+        showToast(`${count} expired item${count > 1 ? 's' : ''} transferred to raffle!`, 'success');
+        await loadRaffles();
+      } else {
+        showToast('No expired items found to transfer', 'warning');
+      }
+    } catch { showToast('Check failed', 'error'); }
+    finally { setForceChecking(false); }
+  };
     setToast({ message: msg, type });
     setTimeout(() => setToast(null), 4500);
   }, []);
@@ -299,10 +313,25 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
             <span className="text-cyan-400 font-bold hud-number">{liveDkp.toLocaleString()} DKP</span>
           </p>
         </div>
-        {isAdmin && !showCreateForm && (
-          <button onClick={() => setShowCreateForm(true)} className="btn-primary flex items-center gap-2">
-            <Plus size={15} /> Create Raffle
-          </button>
+        {isAdmin && (
+          <div className="flex gap-2">
+            <button
+              onClick={handleForceCheck}
+              disabled={forceChecking}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border border-purple-500/20 text-sm font-bold transition-all disabled:opacity-50"
+              title="Manually check for expired shop items and transfer them to raffle"
+            >
+              {forceChecking
+                ? <Loader2 size={15} className="animate-spin" />
+                : <RefreshCw size={15} />}
+              Check Expired
+            </button>
+            {!showCreateForm && (
+              <button onClick={() => setShowCreateForm(true)} className="btn-primary flex items-center gap-2">
+                <Plus size={15} /> Create Raffle
+              </button>
+            )}
+          </div>
         )}
       </div>
 
