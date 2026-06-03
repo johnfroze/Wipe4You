@@ -695,3 +695,35 @@ export async function drawRaffleWinner(raffleId: number): Promise<string> {
   if (error) throw error;
   return data as string;
 }
+
+// =========================
+// AUTO-EXPIRE: transfer expired shop items → raffles
+// Calls the Postgres RPC. Returns count of new raffles created.
+// Safe to call on every page load — skips already-transferred items.
+// =========================
+export async function expireShopItems(): Promise<number> {
+  const { data, error } = await supabase.rpc('expire_shop_items');
+  if (error) {
+    console.error('[expireShopItems]', error.message);
+    return 0;
+  }
+  return (data as number) || 0;
+}
+
+// Get default raffle ticket price from shop_settings
+export async function getDefaultRaffleTicketPrice(): Promise<number> {
+  const { data } = await supabase
+    .from('shop_settings')
+    .select('default_raffle_ticket_price')
+    .limit(1)
+    .single();
+  return data?.default_raffle_ticket_price ?? 10;
+}
+
+export async function setDefaultRaffleTicketPrice(price: number): Promise<void> {
+  const { error } = await supabase
+    .from('shop_settings')
+    .update({ default_raffle_ticket_price: price })
+    .gt('id', 0);
+  if (error) throw error;
+}
