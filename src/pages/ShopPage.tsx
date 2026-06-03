@@ -4,7 +4,7 @@ import type { CurrentUser, ShopItem } from '@/types';
 import {
   ShoppingBag, Plus, Package, Search, Filter,
   X, CheckCircle2, AlertTriangle, Pencil, Trash2,
-  Loader2, Lock, ShieldAlert,
+  Loader2, Lock, ShieldAlert, Timer, CalendarClock,
 } from 'lucide-react';
 
 interface Props {
@@ -63,7 +63,7 @@ function EditItemModal({
   item, onSave, onCancel,
 }: {
   item: ShopItem;
-  onSave: (updates: { name: string; price: number; current_stock: number; total_stock: number; image_url: string; description: string }) => Promise<void>;
+  onSave: (updates: { name: string; price: number; current_stock: number; total_stock: number; image_url: string; description: string; expires_at: string | null }) => Promise<void>;
   onCancel: () => void;
 }) {
   const [name, setName] = useState(item.name);
@@ -72,6 +72,9 @@ function EditItemModal({
   const [totalStock, setTotalStock] = useState(String(item.total_stock));
   const [imageUrl, setImageUrl] = useState(item.image_url || '');
   const [description, setDescription] = useState(item.description || '');
+  const [expiresAt, setExpiresAt] = useState(
+    item.expires_at ? new Date(item.expires_at).toISOString().slice(0, 16) : ''
+  );
   const [saving, setSaving] = useState(false);
 
   const handleSave = async () => {
@@ -84,6 +87,7 @@ function EditItemModal({
       total_stock: parseInt(totalStock) || parseInt(stock),
       image_url: imageUrl,
       description,
+      expires_at: expiresAt ? new Date(expiresAt).toISOString() : null,
     });
     setSaving(false);
   };
@@ -124,6 +128,24 @@ function EditItemModal({
               placeholder="Short description shown on the item card..."
               rows={2}
               className="w-full bg-black border border-[#333] rounded-xl p-3 text-sm focus:border-cyan-500/50 focus:outline-none resize-none" />
+          </div>
+          <div>
+            <label className="text-xs text-gray-500 mb-1 block">Expiry Date (optional)</label>
+            <div className="relative">
+              <CalendarClock size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-600" />
+              <input
+                type="datetime-local"
+                value={expiresAt}
+                onChange={(e) => setExpiresAt(e.target.value)}
+                className="w-full bg-black border border-[#333] rounded-xl pl-9 pr-3 py-3 text-sm focus:border-cyan-500/50 focus:outline-none"
+              />
+            </div>
+            {expiresAt && (
+              <button onClick={() => setExpiresAt('')}
+                className="mt-1 text-[11px] text-gray-600 hover:text-red-400 transition-colors">
+                × Clear expiry
+              </button>
+            )}
           </div>
           <div>
             <label className="text-xs text-gray-500 mb-1 block">Image URL (optional)</label>
@@ -167,6 +189,7 @@ export function ShopPage({ currentUser, onDkpChange }: Props) {
   const [itemName, setItemName] = useState('');
   const [itemPrice, setItemPrice] = useState('');
   const [itemStock, setItemStock] = useState('');
+  const [itemExpiresAt, setItemExpiresAt] = useState('');
   const [itemImage, setItemImage] = useState<File | null>(null);
   const [addingItem, setAddingItem] = useState(false);
 
@@ -284,6 +307,7 @@ export function ShopPage({ currentUser, onDkpChange }: Props) {
         total_stock: parseInt(itemStock),
         current_stock: parseInt(itemStock),
         created_by: currentUser?.member.username || 'Unknown',
+        expires_at: itemExpiresAt ? new Date(itemExpiresAt).toISOString() : null,
       });
 
       if (error) throw error;
@@ -291,6 +315,7 @@ export function ShopPage({ currentUser, onDkpChange }: Props) {
       setItemName('');
       setItemPrice('');
       setItemStock('');
+      setItemExpiresAt('');
       setItemImage(null);
       await loadItems();
       showToast(`"${itemName}" added to shop`, 'success');
@@ -478,9 +503,19 @@ export function ShopPage({ currentUser, onDkpChange }: Props) {
             <input value={itemStock} onChange={(e) => setItemStock(e.target.value)}
               type="number" placeholder="Stock quantity"
               className="bg-black border border-[#333] rounded-xl p-3 text-sm focus:border-cyan-500/50 focus:outline-none" />
+            <div className="relative">
+              <CalendarClock size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-600" />
+              <input
+                type="datetime-local"
+                value={itemExpiresAt}
+                onChange={(e) => setItemExpiresAt(e.target.value)}
+                placeholder="Expiry (optional)"
+                className="w-full bg-black border border-[#333] rounded-xl pl-9 pr-3 py-3 text-sm focus:border-cyan-500/50 focus:outline-none text-gray-400"
+              />
+            </div>
             <input type="file" accept="image/*"
               onChange={(e) => setItemImage(e.target.files?.[0] || null)}
-              className="bg-black border border-[#333] rounded-xl p-3 text-sm text-gray-400" />
+              className="bg-black border border-[#333] rounded-xl p-3 text-sm text-gray-400 sm:col-span-2 md:col-span-4" />
           </div>
 
           <button onClick={addItem} disabled={addingItem}
@@ -526,9 +561,27 @@ export function ShopPage({ currentUser, onDkpChange }: Props) {
             const isBuying = buyingId === item.id;
             const stockPct = Math.round((item.current_stock / Math.max(item.total_stock, 1)) * 100);
 
+            // ── Expiration ──
+            const now = Date.now();
+            const expiresAt = item.expires_at ? new Date(item.expires_at).getTime() : null;
+            const isExpired = expiresAt !== null && now > expiresAt;
+            const msLeft = expiresAt !== null ? Math.max(0, expiresAt - now) : null;
+            const hoursLeft = msLeft !== null ? msLeft / 3600000 : null;
+            const expiryLabel = msLeft === null ? null
+              : msLeft <= 0 ? 'Expired'
+              : hoursLeft! < 1 ? `${Math.ceil(msLeft! / 60000)}m left`
+              : hoursLeft! < 24 ? `${Math.floor(hoursLeft!)}h left`
+              : `${Math.ceil(hoursLeft! / 24)}d left`;
+            const expiryClass = msLeft === null ? ''
+              : msLeft <= 0 ? 'text-red-400'
+              : hoursLeft! < 2 ? 'timer-urgent'
+              : hoursLeft! < 24 ? 'timer-warning'
+              : 'text-gray-500';
+            const isDisabled = outOfStock || isExpired;
+
             return (
               <div key={item.id}
-                className={`card overflow-hidden transition-all ${outOfStock ? 'opacity-60' : ''}`}>
+                className={`card overflow-hidden transition-all ${isDisabled ? 'opacity-60' : ''}`}>
 
                 {/* Image */}
                 <div className="h-48 bg-[#111] flex items-center justify-center overflow-hidden relative">
@@ -537,11 +590,28 @@ export function ShopPage({ currentUser, onDkpChange }: Props) {
                   ) : (
                     <Package size={64} className="text-gray-600" />
                   )}
-                  {outOfStock && (
+                  {/* Expired overlay */}
+                  {isExpired && (
+                    <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center gap-1">
+                      <Timer size={20} className="text-red-400" />
+                      <span className="text-red-400 font-black text-sm border border-red-500/40 bg-red-500/10 px-3 py-1 rounded-full">
+                        EXPIRED
+                      </span>
+                    </div>
+                  )}
+                  {/* Out of stock overlay (only if not expired) */}
+                  {!isExpired && outOfStock && (
                     <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
                       <span className="text-red-400 font-bold text-sm border border-red-500/40 bg-red-500/10 px-3 py-1 rounded-full">
                         OUT OF STOCK
                       </span>
+                    </div>
+                  )}
+                  {/* Expiry timer badge (only when active and has expiry) */}
+                  {!isExpired && expiryLabel && (
+                    <div className={`absolute top-2 right-2 flex items-center gap-1 px-2 py-1 rounded-lg bg-black/70 backdrop-blur-sm text-[11px] font-bold border border-white/10 ${expiryClass}`}>
+                      <Timer size={10} />
+                      {expiryLabel}
                     </div>
                   )}
                 </div>
@@ -577,12 +647,14 @@ export function ShopPage({ currentUser, onDkpChange }: Props) {
                   {/* Actions */}
                   <div className="flex gap-2">
                     <button
-                      onClick={() => !outOfStock && !cantAfford && setConfirmBuy(item)}
-                      disabled={!shopEnabled || outOfStock || cantAfford || isBuying}
+                      onClick={() => !isDisabled && !cantAfford && setConfirmBuy(item)}
+                      disabled={!shopEnabled || isDisabled || cantAfford || isBuying}
                       className="btn-primary flex-1 flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       {isBuying
                         ? <><Loader2 size={14} className="animate-spin" /> Buying...</>
+                        : isExpired
+                        ? <><Timer size={14} /> Expired</>
                         : outOfStock
                         ? 'Out of Stock'
                         : cantAfford
