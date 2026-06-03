@@ -58,6 +58,35 @@ export interface ShopItem {
   created_at: string;
   updated_at: string;
   is_active: boolean;
+  expires_at: string | null;   // ISO timestamp, null = never expires
+}
+
+// ── Raffle ───────────────────────────────────────────────
+export interface Raffle {
+  id: number;
+  item_id: number | null;
+  item_name: string;
+  item_image: string | null;
+  ticket_price: number;
+  max_tickets: number | null;
+  tickets_sold: number;
+  status: 'open' | 'drawing' | 'completed' | 'cancelled';
+  winner_id: string | null;
+  winner_name: string | null;
+  draw_at: string | null;
+  created_by: string;
+  created_at: string;
+  completed_at: string | null;
+}
+
+export interface RaffleEntry {
+  id: number;
+  raffle_id: number;
+  member_id: string;
+  member_name: string;
+  tickets: number;
+  total_cost: number;
+  entered_at: string;
 }
 
 export interface ShopTransaction {
