@@ -6,6 +6,8 @@ import type {
   ShopTransaction,
   DkpLog,
   Announcement,
+  Raffle,
+  RaffleEntry,
 } from '@/types';
 
 const SUPABASE_URL =
@@ -623,4 +625,73 @@ export async function getMemberProfile(memberId: string) {
   );
 
   return { dkpLogs, attendanceLogs, shopPurchases, auctionWins };
+}
+
+// =========================
+// RAFFLES
+// =========================
+
+export async function getRaffles(): Promise<Raffle[]> {
+  const { data, error } = await supabase
+    .from('raffles')
+    .select('*')
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function createRaffle(r: Omit<Raffle, 'id' | 'tickets_sold' | 'winner_id' | 'winner_name' | 'created_at' | 'completed_at'>): Promise<void> {
+  const { error } = await supabase.from('raffles').insert({
+    item_id:      r.item_id,
+    item_name:    r.item_name,
+    item_image:   r.item_image,
+    ticket_price: r.ticket_price,
+    max_tickets:  r.max_tickets,
+    status:       'open',
+    draw_at:      r.draw_at,
+    created_by:   r.created_by,
+  });
+  if (error) throw error;
+}
+
+export async function updateRaffle(id: number, updates: Partial<Raffle>): Promise<void> {
+  const { error } = await supabase.from('raffles').update(updates).eq('id', id);
+  if (error) throw error;
+}
+
+export async function deleteRaffle(id: number): Promise<void> {
+  const { error } = await supabase.from('raffles').delete().eq('id', id);
+  if (error) throw error;
+}
+
+export async function getRaffleEntries(raffleId: number): Promise<RaffleEntry[]> {
+  const { data, error } = await supabase
+    .from('raffle_entries')
+    .select('*')
+    .eq('raffle_id', raffleId)
+    .order('entered_at', { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
+// Atomic enter — calls Postgres RPC
+// Returns: 'ok' | 'insufficient_dkp' | 'raffle_closed' | 'tickets_full'
+export async function enterRaffle(raffleId: number, memberId: string, tickets: number = 1): Promise<string> {
+  const { data, error } = await supabase.rpc('enter_raffle', {
+    p_raffle_id: raffleId,
+    p_member_id: memberId,
+    p_tickets:   tickets,
+  });
+  if (error) throw error;
+  return data as string;
+}
+
+// Atomic draw — calls Postgres RPC
+// Returns winner name, 'no_entries', or 'raffle_not_open'
+export async function drawRaffleWinner(raffleId: number): Promise<string> {
+  const { data, error } = await supabase.rpc('draw_raffle_winner', {
+    p_raffle_id: raffleId,
+  });
+  if (error) throw error;
+  return data as string;
 }
