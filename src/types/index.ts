@@ -70,9 +70,10 @@ export interface Raffle {
   ticket_price: number;
   max_tickets: number | null;
   tickets_sold: number;
-  winner_count: number;       // how many winners will be drawn
+  winner_count: number;
   status: 'open' | 'completed' | 'cancelled';
   draw_at: string | null;
+  required_event_name: string | null;  // null = open to all
   created_by: string;
   created_at: string;
   completed_at: string | null;
