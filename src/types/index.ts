@@ -62,22 +62,30 @@ export interface ShopItem {
   transferred_to_raffle: boolean;
 }
 
-// ── Raffle ───────────────────────────────────────────────
+// ── Raffle v2 ─────────────────────────────────────────────
 export interface Raffle {
   id: number;
-  item_id: number | null;
-  item_name: string;
-  item_image: string | null;
+  title: string;
+  description: string | null;
   ticket_price: number;
   max_tickets: number | null;
   tickets_sold: number;
-  status: 'open' | 'drawing' | 'completed' | 'cancelled';
-  winner_id: string | null;
-  winner_name: string | null;
+  winner_count: number;       // how many winners will be drawn
+  status: 'open' | 'completed' | 'cancelled';
   draw_at: string | null;
   created_by: string;
   created_at: string;
   completed_at: string | null;
+}
+
+export interface RafflePrize {
+  id: number;
+  raffle_id: number;
+  item_id: number | null;
+  item_name: string;
+  item_image: string | null;
+  winner_id: string | null;
+  winner_name: string | null;
 }
 
 export interface RaffleEntry {
