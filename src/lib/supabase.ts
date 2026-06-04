@@ -7,6 +7,7 @@ import type {
   DkpLog,
   Announcement,
   Raffle,
+  RafflePrize,
   RaffleEntry,
 } from '@/types';
 
@@ -628,7 +629,7 @@ export async function getMemberProfile(memberId: string) {
 }
 
 // =========================
-// RAFFLES
+// RAFFLES v2 — multi-item, multi-winner
 // =========================
 
 export async function getRaffles(): Promise<Raffle[]> {
@@ -640,18 +641,31 @@ export async function getRaffles(): Promise<Raffle[]> {
   return data || [];
 }
 
-export async function createRaffle(r: Omit<Raffle, 'id' | 'tickets_sold' | 'winner_id' | 'winner_name' | 'created_at' | 'completed_at'>): Promise<void> {
-  const { error } = await supabase.from('raffles').insert({
-    item_id:      r.item_id,
-    item_name:    r.item_name,
-    item_image:   r.item_image,
-    ticket_price: r.ticket_price,
-    max_tickets:  r.max_tickets,
-    status:       'open',
-    draw_at:      r.draw_at,
-    created_by:   r.created_by,
-  });
+export async function createRaffle(r: {
+  title: string;
+  description?: string | null;
+  ticket_price: number;
+  max_tickets?: number | null;
+  winner_count: number;
+  draw_at?: string | null;
+  created_by: string;
+}): Promise<number> {
+  const { data, error } = await supabase
+    .from('raffles')
+    .insert({
+      title:        r.title,
+      description:  r.description || null,
+      ticket_price: r.ticket_price,
+      max_tickets:  r.max_tickets || null,
+      winner_count: r.winner_count,
+      status:       'open',
+      draw_at:      r.draw_at || null,
+      created_by:   r.created_by,
+    })
+    .select('id')
+    .single();
   if (error) throw error;
+  return data.id;
 }
 
 export async function updateRaffle(id: number, updates: Partial<Raffle>): Promise<void> {
@@ -661,6 +675,31 @@ export async function updateRaffle(id: number, updates: Partial<Raffle>): Promis
 
 export async function deleteRaffle(id: number): Promise<void> {
   const { error } = await supabase.from('raffles').delete().eq('id', id);
+  if (error) throw error;
+}
+
+export async function getRafflePrizes(raffleId: number): Promise<RafflePrize[]> {
+  const { data, error } = await supabase
+    .from('raffle_prizes')
+    .select('*')
+    .eq('raffle_id', raffleId)
+    .order('id');
+  if (error) throw error;
+  return data || [];
+}
+
+export async function addRafflePrize(prize: {
+  raffle_id: number;
+  item_id: number | null;
+  item_name: string;
+  item_image: string | null;
+}): Promise<void> {
+  const { error } = await supabase.from('raffle_prizes').insert(prize);
+  if (error) throw error;
+}
+
+export async function removeRafflePrize(prizeId: number): Promise<void> {
+  const { error } = await supabase.from('raffle_prizes').delete().eq('id', prizeId);
   if (error) throw error;
 }
 
@@ -674,8 +713,6 @@ export async function getRaffleEntries(raffleId: number): Promise<RaffleEntry[]>
   return data || [];
 }
 
-// Atomic enter — calls Postgres RPC
-// Returns: 'ok' | 'insufficient_dkp' | 'raffle_closed' | 'tickets_full'
 export async function enterRaffle(raffleId: number, memberId: string, tickets: number = 1): Promise<string> {
   const { data, error } = await supabase.rpc('enter_raffle', {
     p_raffle_id: raffleId,
@@ -686,14 +723,33 @@ export async function enterRaffle(raffleId: number, memberId: string, tickets: n
   return data as string;
 }
 
-// Atomic draw — calls Postgres RPC
-// Returns winner name, 'no_entries', or 'raffle_not_open'
-export async function drawRaffleWinner(raffleId: number): Promise<string> {
-  const { data, error } = await supabase.rpc('draw_raffle_winner', {
+export async function drawRaffleWinners(raffleId: number): Promise<
+  { prize: string; winner: string }[] | { error: string }
+> {
+  const { data, error } = await supabase.rpc('draw_raffle_winners', {
     p_raffle_id: raffleId,
   });
   if (error) throw error;
-  return data as string;
+  return data as { prize: string; winner: string }[] | { error: string };
+}
+
+export async function getExpiredQueuedItems() {
+  const { data, error } = await supabase
+    .from('shop_items')
+    .select('id, name, image_url, price, expires_at, raffle_id')
+    .eq('transferred_to_raffle', true)
+    .is('raffle_id', null)
+    .order('expires_at', { ascending: true });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function assignItemsToRaffle(itemIds: number[], raffleId: number): Promise<void> {
+  const { error } = await supabase
+    .from('shop_items')
+    .update({ raffle_id: raffleId })
+    .in('id', itemIds);
+  if (error) throw error;
 }
 
 // =========================
