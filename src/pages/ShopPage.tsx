@@ -99,6 +99,19 @@ function EditItemModal({
           <Pencil size={16} className="text-cyan-400" /> Edit Item
         </h3>
 
+        {/* Restock banner — shown when item is in raffle state */}
+        {item.transferred_to_raffle && (
+          <div className="flex items-start gap-2.5 px-3 py-2.5 rounded-xl bg-purple-500/10 border border-purple-500/25 text-xs text-purple-300">
+            <Ticket size={13} className="text-purple-400 shrink-0 mt-0.5" />
+            <div>
+              <div className="font-bold text-white mb-0.5">Item is currently in Raffle</div>
+              <div className="text-purple-400">
+                Set <span className="font-bold text-white">Current Stock</span> to more than 0 and save — the item will automatically return to the shop and be removed from the raffle queue.
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="space-y-3">
           <div>
             <label className="text-xs text-gray-500 mb-1 block">Item Name</label>
@@ -337,18 +350,40 @@ export function ShopPage({ currentUser, onDkpChange }: Props) {
 
   // ─── EDIT ITEM ───
   const saveEdit = async (updates: {
-    name: string; price: number; current_stock: number; total_stock: number; image_url: string;
+    name: string; price: number; current_stock: number; total_stock: number;
+    image_url: string; description: string; expires_at: string | null;
   }) => {
     if (!editItem) return;
     try {
+      // If admin restocks an item that was transferred to raffle,
+      // reset raffle flags so it reappears in the shop
+      const restockingFromRaffle =
+        editItem.transferred_to_raffle && updates.current_stock > 0;
+
+      const payload: Record<string, unknown> = { ...updates };
+
+      if (restockingFromRaffle) {
+        payload.transferred_to_raffle = false;
+        payload.raffle_id = null;
+        // Clear expiry so it doesn't immediately re-expire
+        if (!updates.expires_at) {
+          payload.expires_at = null;
+        }
+      }
+
       const { error } = await supabase
         .from('shop_items')
-        .update(updates)
+        .update(payload)
         .eq('id', editItem.id);
       if (error) throw error;
       await loadItems();
       setEditItem(null);
-      showToast('Item updated', 'success');
+      showToast(
+        restockingFromRaffle
+          ? 'Item restocked and returned to shop!'
+          : 'Item updated',
+        'success'
+      );
     } catch (err) {
       console.error(err);
       showToast('Failed to update item', 'error');
