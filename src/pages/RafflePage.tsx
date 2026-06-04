@@ -1,15 +1,19 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
-  supabase, getRaffles, createRaffle, updateRaffle,
-  deleteRaffle, getRaffleEntries, enterRaffle, drawRaffleWinner,
+  supabase,
+  getRaffles, createRaffle, updateRaffle, deleteRaffle,
+  getRafflePrizes, addRafflePrize, removeRafflePrize,
+  getRaffleEntries, enterRaffle, drawRaffleWinners,
+  getExpiredQueuedItems, assignItemsToRaffle,
   expireShopItems,
 } from '@/lib/supabase';
-import type { CurrentUser, Raffle, RaffleEntry } from '@/types';
+import type { CurrentUser, Raffle, RafflePrize, RaffleEntry } from '@/types';
 import {
   Ticket, Plus, Trash2, Trophy, Users,
   X, CheckCircle2, AlertTriangle, Loader2,
   ChevronDown, ChevronUp, Shuffle, Clock,
-  Package, CalendarClock, ShieldAlert, RefreshCw,
+  Package, CalendarClock, RefreshCw,
+  Gift, Crown, Info,
 } from 'lucide-react';
 
 interface Props {
@@ -17,16 +21,26 @@ interface Props {
   onDkpChange: () => void;
 }
 
+interface QueuedItem {
+  id: number;
+  name: string;
+  image_url: string | null;
+  price: number;
+  expires_at: string | null;
+  raffle_id: number | null;
+}
+
+// ─── Toast ────────────────────────────────────────────────
 function Toast({ message, type, onClose }: {
   message: string; type: 'success' | 'error' | 'warning'; onClose: () => void;
 }) {
-  const styles = {
+  const s = {
     success: 'bg-green-500/10 text-green-400 border-green-500/20',
     error:   'bg-red-500/10 text-red-400 border-red-500/20',
     warning: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
   };
   return (
-    <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-xl shadow-xl flex items-center gap-2 text-sm font-medium animate-slide-in-right border ${styles[type]}`}>
+    <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-xl shadow-xl flex items-center gap-2 text-sm font-medium animate-slide-in-right border ${s[type]}`}>
       {type === 'success' ? <CheckCircle2 size={15} /> : <AlertTriangle size={15} />}
       {message}
       <button onClick={onClose} className="ml-1 hover:text-white"><X size={13} /></button>
@@ -34,54 +48,58 @@ function Toast({ message, type, onClose }: {
   );
 }
 
-function ConfirmModal({ title, message, confirmLabel, confirmClass, onConfirm, onCancel, loading = false }: {
-  title: string; message: string; confirmLabel: string; confirmClass?: string;
-  onConfirm: () => void; onCancel: () => void; loading?: boolean;
+// ─── Winners Announcement ─────────────────────────────────
+function WinnersModal({
+  results, onClose,
+}: {
+  results: { prize: string; winner: string }[];
+  onClose: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm">
-      <div className="bg-[#0d1117] border border-[#1e2d3d] rounded-2xl p-6 w-full max-w-sm shadow-2xl space-y-4 animate-fade-in">
-        <h3 className="font-bold">{title}</h3>
-        <p className="text-sm text-gray-400">{message}</p>
-        <div className="flex gap-3 justify-end">
-          <button onClick={onCancel} disabled={loading}
-            className="px-4 py-2 rounded-xl text-sm bg-white/5 hover:bg-white/10 text-gray-300 transition-colors">Cancel</button>
-          <button onClick={onConfirm} disabled={loading}
-            className={`px-4 py-2 rounded-xl text-sm flex items-center gap-2 disabled:opacity-50 transition-colors ${confirmClass || 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 hover:bg-cyan-500/30'}`}>
-            {loading && <Loader2 size={13} className="animate-spin" />}
-            {confirmLabel}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Winner Announcement ──────────────────────────────────
-function WinnerModal({ name, item, onClose }: { name: string; item: string; onClose: () => void }) {
-  return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/90 backdrop-blur-sm">
-      <div className="bg-[#0d1117] border border-yellow-500/30 rounded-3xl p-8 w-full max-w-md shadow-2xl text-center animate-fade-in">
-        {/* Trophy */}
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/90 backdrop-blur-sm p-4">
+      <div className="bg-[#0d1117] border border-yellow-500/30 rounded-3xl p-8 w-full max-w-lg shadow-2xl text-center animate-fade-in">
         <div className="w-20 h-20 rounded-full bg-yellow-400/10 border-2 border-yellow-500/30 flex items-center justify-center mx-auto mb-5 animate-pulse-glow">
           <Trophy size={40} className="text-yellow-400" />
         </div>
-        <div className="text-yellow-400 text-xs font-black uppercase tracking-widest mb-2">🎉 Raffle Winner 🎉</div>
-        <h2 className="text-3xl font-black mb-1 text-glow-gold">{name}</h2>
-        <p className="text-gray-400 text-sm mb-6">wins <span className="text-white font-bold">{item}</span></p>
-        <button onClick={onClose} className="btn-primary w-full">Awesome!</button>
+        <div className="text-yellow-400 text-xs font-black uppercase tracking-widest mb-3">
+          🎉 Raffle Results 🎉
+        </div>
+
+        <div className="space-y-3 mb-6 text-left">
+          {results.map((r, i) => (
+            <div key={i} className="flex items-center gap-3 p-3 rounded-xl bg-yellow-500/8 border border-yellow-500/20">
+              <div className="w-8 h-8 rounded-lg bg-yellow-400/20 flex items-center justify-center shrink-0">
+                <Gift size={16} className="text-yellow-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-xs text-gray-500 truncate">{r.prize}</div>
+                <div className="font-black text-white flex items-center gap-1.5">
+                  <Crown size={12} className="text-yellow-400" />
+                  {r.winner}
+                </div>
+              </div>
+              <CheckCircle2 size={16} className="text-green-400 shrink-0" />
+            </div>
+          ))}
+        </div>
+
+        <button onClick={onClose} className="btn-primary w-full">
+          Awesome!
+        </button>
       </div>
     </div>
   );
 }
 
+// ─── Main Component ───────────────────────────────────────
 export function RafflePage({ currentUser, onDkpChange }: Props) {
   const isAdmin = currentUser?.member.role === 'leader' || currentUser?.member.role === 'elder';
   const myId = currentUser?.member.id || '';
-  const myUsername = currentUser?.member.username || '';
 
   const [raffles, setRaffles] = useState<Raffle[]>([]);
+  const [prizes, setPrizes] = useState<Record<number, RafflePrize[]>>({});
   const [entries, setEntries] = useState<Record<number, RaffleEntry[]>>({});
+  const [queuedItems, setQueuedItems] = useState<QueuedItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedRaffle, setExpandedRaffle] = useState<number | null>(null);
   const [ticketInputs, setTicketInputs] = useState<Record<number, string>>({});
@@ -89,32 +107,36 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
   const [drawingId, setDrawingId] = useState<number | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
-  const [winnerModal, setWinnerModal] = useState<{ name: string; item: string } | null>(null);
+  const [winnersModal, setWinnersModal] = useState<{ prize: string; winner: string }[] | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'warning' } | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [forceChecking, setForceChecking] = useState(false);
   const [liveDkp, setLiveDkp] = useState(currentUser?.member.dkp || 0);
 
-  // Create form state
-  const [formName, setFormName] = useState('');
-  const [formImage, setFormImage] = useState('');
+  // Create form
+  const [formTitle, setFormTitle] = useState('');
+  const [formDesc, setFormDesc] = useState('');
   const [formTicketPrice, setFormTicketPrice] = useState('10');
   const [formMaxTickets, setFormMaxTickets] = useState('');
   const [formDrawAt, setFormDrawAt] = useState('');
+  const [formSelectedItems, setFormSelectedItems] = useState<Set<number>>(new Set());
   const [formSaving, setFormSaving] = useState(false);
-
-  const [forceChecking, setForceChecking] = useState(false);
 
   const showToast = useCallback((msg: string, type: 'success' | 'error' | 'warning' = 'success') => {
     setToast({ message: msg, type });
-    setTimeout(() => setToast(null), 4500);
+    setTimeout(() => setToast(null), 5000);
   }, []);
 
-  const loadRaffles = useCallback(async () => {
+  const loadAll = useCallback(async () => {
+    setLoading(true);
     try {
-      setLoading(true);
       await expireShopItems();
-      const data = await getRaffles();
-      setRaffles(data);
+      const [raffleData, queueData] = await Promise.all([
+        getRaffles(),
+        getExpiredQueuedItems(),
+      ]);
+      setRaffles(raffleData);
+      setQueuedItems(queueData as QueuedItem[]);
     } catch (err) {
       console.error(err);
       showToast('Failed to load raffles', 'error');
@@ -123,72 +145,89 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
     }
   }, [showToast]);
 
-  const handleForceCheck = useCallback(async () => {
-    setForceChecking(true);
-    try {
-      const count = await expireShopItems();
-      if (count > 0) {
-        showToast(`${count} expired item${count > 1 ? 's' : ''} transferred to raffle!`, 'success');
-        await loadRaffles();
-      } else {
-        // Check if there are expired items that are already transferred
-        showToast('No new expired items to transfer — check browser console for details', 'warning');
-      }
-    } catch (err: any) {
-      console.error('[handleForceCheck]', err);
-      showToast(`Error: ${err?.message || 'Check failed — see console'}`, 'error');
-    } finally { setForceChecking(false); }
-  }, [showToast, loadRaffles]);
-
-  const loadEntries = useCallback(async (raffleId: number) => {
-    try {
-      const data = await getRaffleEntries(raffleId);
-      setEntries((prev) => ({ ...prev, [raffleId]: data }));
-    } catch (err) { console.error(err); }
+  const loadPrizesAndEntries = useCallback(async (raffleId: number) => {
+    const [p, e] = await Promise.all([
+      getRafflePrizes(raffleId),
+      getRaffleEntries(raffleId),
+    ]);
+    setPrizes((prev) => ({ ...prev, [raffleId]: p }));
+    setEntries((prev) => ({ ...prev, [raffleId]: e }));
   }, []);
 
   useEffect(() => {
-    loadRaffles();
+    loadAll();
     const channel = supabase
-      .channel('raffles-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'raffles' }, loadRaffles)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'raffle_entries' }, () => {
-        // Reload entries for all expanded raffles
-        if (expandedRaffle) loadEntries(expandedRaffle);
-      })
+      .channel('raffles-v2-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'raffles' }, loadAll)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'shop_items' }, loadAll)
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [loadRaffles, loadEntries, expandedRaffle]);
+  }, [loadAll]);
 
-  // Sync live DKP
   useEffect(() => {
     if (currentUser?.member) setLiveDkp(currentUser.member.dkp);
   }, [currentUser]);
 
+  // ── Force check ──
+  const handleForceCheck = useCallback(async () => {
+    setForceChecking(true);
+    try {
+      const count = await expireShopItems();
+      const queueData = await getExpiredQueuedItems();
+      setQueuedItems(queueData as QueuedItem[]);
+      if (count > 0) {
+        showToast(`${count} expired item${count > 1 ? 's' : ''} added to queue!`, 'success');
+      } else {
+        showToast('No new expired items found', 'warning');
+      }
+    } catch (err: any) {
+      showToast(`Error: ${err?.message || 'Check failed'}`, 'error');
+    } finally { setForceChecking(false); }
+  }, [showToast]);
+
   // ── Create Raffle ──
   const handleCreate = async () => {
-    if (!formName.trim()) { showToast('Enter a raffle name', 'error'); return; }
+    if (!formTitle.trim()) { showToast('Enter a raffle title', 'error'); return; }
     const price = parseInt(formTicketPrice);
     if (isNaN(price) || price <= 0) { showToast('Ticket price must be > 0', 'error'); return; }
+    if (formSelectedItems.size === 0) { showToast('Select at least one item as prize', 'error'); return; }
+
     setFormSaving(true);
     try {
-      await createRaffle({
-        item_id:      null,
-        item_name:    formName.trim(),
-        item_image:   formImage.trim() || null,
+      const raffleId = await createRaffle({
+        title:        formTitle.trim(),
+        description:  formDesc.trim() || null,
         ticket_price: price,
         max_tickets:  formMaxTickets ? parseInt(formMaxTickets) : null,
-        status:       'open',
+        winner_count: formSelectedItems.size, // one winner per prize item
         draw_at:      formDrawAt ? new Date(formDrawAt).toISOString() : null,
-        created_by:   myUsername,
+        created_by:   currentUser?.member.username || 'Admin',
       });
-      setFormName(''); setFormImage(''); setFormTicketPrice('10');
+
+      // Add each selected item as a prize
+      const selectedItemObjects = queuedItems.filter((i) => formSelectedItems.has(i.id));
+      for (const item of selectedItemObjects) {
+        await addRafflePrize({
+          raffle_id:  raffleId,
+          item_id:    item.id,
+          item_name:  item.name,
+          item_image: item.image_url,
+        });
+      }
+
+      // Mark items as assigned to this raffle
+      await assignItemsToRaffle(Array.from(formSelectedItems), raffleId);
+
+      setFormTitle(''); setFormDesc(''); setFormTicketPrice('10');
       setFormMaxTickets(''); setFormDrawAt('');
+      setFormSelectedItems(new Set());
       setShowCreateForm(false);
-      showToast(`Raffle "${formName}" created!`, 'success');
-      await loadRaffles();
-    } catch (err) { console.error(err); showToast('Failed to create raffle', 'error'); }
-    finally { setFormSaving(false); }
+      showToast(`Raffle "${formTitle}" created with ${formSelectedItems.size} prize${formSelectedItems.size > 1 ? 's' : ''}!`, 'success');
+      await loadAll();
+    } catch (err: any) {
+      console.error(err);
+      showToast(`Failed: ${err?.message || 'Unknown error'}`, 'error');
+    } finally { setFormSaving(false); }
   };
 
   // ── Buy Tickets ──
@@ -208,68 +247,59 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
           setLiveDkp((p) => p - cost);
           setTicketInputs((p) => ({ ...p, [raffle.id]: '' }));
           await onDkpChange();
-          await loadRaffles();
-          if (expandedRaffle === raffle.id) await loadEntries(raffle.id);
+          await loadPrizesAndEntries(raffle.id);
+          await loadAll();
           showToast(`${count} ticket${count > 1 ? 's' : ''} bought for ${cost.toLocaleString()} DKP!`, 'success');
           break;
-        case 'insufficient_dkp':  showToast('Not enough DKP', 'error'); break;
-        case 'raffle_closed':     showToast('This raffle is no longer open', 'error'); break;
-        case 'tickets_full':      showToast('No tickets remaining', 'error'); break;
-        default:                  showToast('Purchase failed', 'error');
+        case 'insufficient_dkp': showToast('Not enough DKP', 'error'); break;
+        case 'raffle_closed':    showToast('This raffle is no longer open', 'error'); break;
+        case 'tickets_full':     showToast('No tickets remaining', 'error'); break;
+        default:                 showToast('Purchase failed', 'error');
       }
     } catch (err) { console.error(err); showToast('Failed to buy tickets', 'error'); }
     finally { setBuyingId(null); }
   };
 
-  // ── Draw Winner ──
+  // ── Draw Winners ──
   const handleDraw = async (raffle: Raffle) => {
     setDrawingId(raffle.id);
     try {
-      const winner = await drawRaffleWinner(raffle.id);
-      await loadRaffles();
-      if (winner === 'no_entries') {
-        showToast('No entries — raffle closed with no winner', 'warning');
-      } else if (winner === 'raffle_not_open') {
-        showToast('Raffle is not open', 'error');
+      const result = await drawRaffleWinners(raffle.id);
+      await loadAll();
+      if ('error' in result) {
+        if (result.error === 'no_entries') showToast('No entries — raffle closed with no winners', 'warning');
+        else if (result.error === 'raffle_not_open') showToast('Raffle is not open', 'error');
+        else showToast(`Draw failed: ${result.error}`, 'error');
       } else {
-        setWinnerModal({ name: winner, item: raffle.item_name });
+        setWinnersModal(result);
       }
-    } catch (err) { console.error(err); showToast('Draw failed', 'error'); }
-    finally { setDrawingId(null); }
+    } catch (err: any) {
+      showToast(`Draw failed: ${err?.message || 'Unknown error'}`, 'error');
+    } finally { setDrawingId(null); }
   };
 
-  // ── Delete Raffle ──
+  // ── Delete ──
   const handleDelete = async () => {
     if (!deleteConfirm) return;
     setDeleteLoading(true);
     try {
       await deleteRaffle(deleteConfirm);
-      await loadRaffles();
+      await loadAll();
       showToast('Raffle deleted', 'success');
     } catch { showToast('Delete failed', 'error'); }
     finally { setDeleteLoading(false); setDeleteConfirm(null); }
   };
 
-  // ── Cancel Raffle ──
-  const handleCancel = async (id: number) => {
-    try {
-      await updateRaffle(id, { status: 'cancelled' });
-      await loadRaffles();
-      showToast('Raffle cancelled', 'success');
-    } catch { showToast('Failed to cancel', 'error'); }
-  };
-
-  // Toggle entries panel
+  // Toggle expand
   const toggleExpand = async (id: number) => {
     if (expandedRaffle === id) { setExpandedRaffle(null); return; }
     setExpandedRaffle(id);
-    await loadEntries(id);
+    await loadPrizesAndEntries(id);
   };
 
-  const openRaffles = useMemo(() => raffles.filter((r) => r.status === 'open'), [raffles]);
+  const openRaffles   = useMemo(() => raffles.filter((r) => r.status === 'open'), [raffles]);
   const closedRaffles = useMemo(() => raffles.filter((r) => r.status !== 'open'), [raffles]);
 
-  // Per-raffle: how many tickets the current user has
   const myTickets = (raffleId: number) =>
     (entries[raffleId] || []).filter((e) => e.member_id === myId)
       .reduce((sum, e) => sum + e.tickets, 0);
@@ -284,23 +314,27 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
   return (
     <div className="animate-fade-in space-y-6">
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
-      {winnerModal && (
-        <WinnerModal
-          name={winnerModal.name}
-          item={winnerModal.item}
-          onClose={() => setWinnerModal(null)}
-        />
+
+      {winnersModal && (
+        <WinnersModal results={winnersModal} onClose={() => setWinnersModal(null)} />
       )}
+
       {deleteConfirm !== null && (
-        <ConfirmModal
-          title="Delete Raffle"
-          message="This permanently deletes the raffle and all ticket entries. This cannot be undone."
-          confirmLabel="Delete"
-          confirmClass="bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30"
-          onConfirm={handleDelete}
-          onCancel={() => setDeleteConfirm(null)}
-          loading={deleteLoading}
-        />
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm">
+          <div className="bg-[#0d1117] border border-[#1e2d3d] rounded-2xl p-6 w-full max-w-sm shadow-2xl space-y-4 animate-fade-in">
+            <h3 className="font-bold">Delete Raffle</h3>
+            <p className="text-sm text-gray-400">This permanently deletes the raffle, all prizes, and all entries.</p>
+            <div className="flex gap-3 justify-end">
+              <button onClick={() => setDeleteConfirm(null)} disabled={deleteLoading}
+                className="px-4 py-2 rounded-xl text-sm bg-white/5 hover:bg-white/10 text-gray-300">Cancel</button>
+              <button onClick={handleDelete} disabled={deleteLoading}
+                className="px-4 py-2 rounded-xl text-sm bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 flex items-center gap-2 disabled:opacity-50">
+                {deleteLoading && <Loader2 size={13} className="animate-spin" />}
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ── Header ── */}
@@ -317,21 +351,17 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
             <span className="text-cyan-400 font-bold hud-number">{liveDkp.toLocaleString()} DKP</span>
           </p>
         </div>
+
         {isAdmin && (
-          <div className="flex gap-2">
-            <button
-              onClick={handleForceCheck}
-              disabled={forceChecking}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border border-purple-500/20 text-sm font-bold transition-all disabled:opacity-50"
-              title="Manually check for expired shop items and transfer them to raffle"
-            >
-              {forceChecking
-                ? <Loader2 size={15} className="animate-spin" />
-                : <RefreshCw size={15} />}
+          <div className="flex gap-2 flex-wrap">
+            <button onClick={handleForceCheck} disabled={forceChecking}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-400 border border-white/5 text-sm font-bold transition-all disabled:opacity-50">
+              {forceChecking ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />}
               Check Expired
             </button>
             {!showCreateForm && (
-              <button onClick={() => setShowCreateForm(true)} className="btn-primary flex items-center gap-2">
+              <button onClick={() => setShowCreateForm(true)}
+                className="btn-primary flex items-center gap-2">
                 <Plus size={15} /> Create Raffle
               </button>
             )}
@@ -339,25 +369,73 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
         )}
       </div>
 
-      {/* ── Create Form ── */}
+      {/* ── Expired Items Queue (admin only) ── */}
+      {isAdmin && (
+        <div className={`card p-4 ${queuedItems.length > 0 ? 'border-purple-500/20' : ''}`}>
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-6 h-6 rounded-lg bg-purple-500/15 flex items-center justify-center">
+              <Package size={13} className="text-purple-400" />
+            </div>
+            <h3 className="font-bold text-sm text-gray-300">
+              Expired Items Queue
+            </h3>
+            <span className={`text-xs font-black px-2 py-0.5 rounded-full ${
+              queuedItems.length > 0
+                ? 'bg-purple-500/20 text-purple-400 border border-purple-500/25'
+                : 'bg-white/5 text-gray-600'
+            }`}>
+              {queuedItems.length}
+            </span>
+          </div>
+
+          {queuedItems.length === 0 ? (
+            <p className="text-gray-600 text-xs">
+              No expired items waiting. When shop items expire, they appear here for you to assign to a raffle.
+            </p>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+              {queuedItems.map((item) => (
+                <div key={item.id}
+                  className="flex items-center gap-2 p-2.5 rounded-xl bg-black/40 border border-[#1e2d3d]">
+                  {item.image_url
+                    ? <img src={item.image_url} alt={item.name} className="w-8 h-8 rounded-lg object-cover shrink-0" />
+                    : <div className="w-8 h-8 rounded-lg bg-[#1e2d3d] flex items-center justify-center shrink-0">
+                        <Package size={14} className="text-gray-600" />
+                      </div>
+                  }
+                  <div className="min-w-0">
+                    <div className="text-xs font-bold truncate">{item.name}</div>
+                    <div className="text-[10px] text-gray-600">
+                      {item.expires_at ? new Date(item.expires_at).toLocaleDateString() : ''}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Create Raffle Form ── */}
       {showCreateForm && isAdmin && (
-        <div className="card p-5 animate-fade-in space-y-4 border-purple-500/20">
+        <div className="card p-5 animate-fade-in border-purple-500/20 space-y-5">
           <h3 className="font-bold text-sm text-gray-400 uppercase tracking-wider flex items-center gap-2">
             <Ticket size={14} className="text-purple-400" /> New Raffle
           </h3>
 
+          {/* Basic settings */}
           <div className="grid sm:grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs text-gray-500 mb-1 block">Prize Name *</label>
-              <input value={formName} onChange={(e) => setFormName(e.target.value)}
-                placeholder="e.g. Dragon Sword +8"
+            <div className="sm:col-span-2">
+              <label className="text-xs text-gray-500 mb-1 block">Raffle Title *</label>
+              <input value={formTitle} onChange={(e) => setFormTitle(e.target.value)}
+                placeholder="e.g. Weekly Gear Raffle"
                 className="w-full bg-black/60 border border-[#1e2d3d] rounded-xl p-3 text-sm focus:border-purple-500/50 focus:outline-none" />
             </div>
-            <div>
-              <label className="text-xs text-gray-500 mb-1 block">Prize Image URL (optional)</label>
-              <input value={formImage} onChange={(e) => setFormImage(e.target.value)}
-                placeholder="https://..."
-                className="w-full bg-black/60 border border-[#1e2d3d] rounded-xl p-3 text-sm focus:border-purple-500/50 focus:outline-none" />
+            <div className="sm:col-span-2">
+              <label className="text-xs text-gray-500 mb-1 block">Description (optional)</label>
+              <textarea value={formDesc} onChange={(e) => setFormDesc(e.target.value)}
+                rows={2} placeholder="Tell members what this raffle is about..."
+                className="w-full bg-black/60 border border-[#1e2d3d] rounded-xl p-3 text-sm focus:border-purple-500/50 focus:outline-none resize-none" />
             </div>
             <div>
               <label className="text-xs text-gray-500 mb-1 block">Ticket Price (DKP) *</label>
@@ -366,13 +444,13 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
                 className="w-full bg-black/60 border border-[#1e2d3d] rounded-xl p-3 text-sm focus:border-purple-500/50 focus:outline-none" />
             </div>
             <div>
-              <label className="text-xs text-gray-500 mb-1 block">Max Tickets (optional — blank = unlimited)</label>
+              <label className="text-xs text-gray-500 mb-1 block">Max Tickets (optional)</label>
               <input value={formMaxTickets} onChange={(e) => setFormMaxTickets(e.target.value)}
                 type="number" min="1" placeholder="Unlimited"
                 className="w-full bg-black/60 border border-[#1e2d3d] rounded-xl p-3 text-sm focus:border-purple-500/50 focus:outline-none" />
             </div>
             <div className="sm:col-span-2">
-              <label className="text-xs text-gray-500 mb-1 block">Auto-Draw Date (optional)</label>
+              <label className="text-xs text-gray-500 mb-1 block">Draw Date (optional)</label>
               <div className="relative">
                 <CalendarClock size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-600" />
                 <input type="datetime-local" value={formDrawAt} onChange={(e) => setFormDrawAt(e.target.value)}
@@ -381,32 +459,102 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
             </div>
           </div>
 
-          {/* Preview */}
-          {formName && (
-            <div className="p-3 rounded-xl bg-purple-500/5 border border-purple-500/15 text-xs text-gray-400 space-y-1">
-              <div className="flex justify-between">
-                <span>Prize</span>
-                <span className="text-white font-bold">{formName}</span>
+          {/* Select prizes from expired queue */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-xs text-gray-500 uppercase tracking-wider font-bold">
+                Select Prize Items *
+              </label>
+              <span className="text-xs text-purple-400 font-bold">
+                {formSelectedItems.size} selected · {formSelectedItems.size} winner{formSelectedItems.size !== 1 ? 's' : ''} will be drawn
+              </span>
+            </div>
+
+            {queuedItems.length === 0 ? (
+              <div className="p-4 rounded-xl bg-black/40 border border-[#1e2d3d] text-center">
+                <Info size={16} className="mx-auto text-gray-600 mb-1" />
+                <p className="text-gray-600 text-xs">No expired items in queue. Items appear here when they expire in the shop.</p>
               </div>
-              <div className="flex justify-between">
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-56 overflow-y-auto pr-1">
+                {queuedItems.map((item) => {
+                  const selected = formSelectedItems.has(item.id);
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => {
+                        setFormSelectedItems((prev) => {
+                          const next = new Set(prev);
+                          selected ? next.delete(item.id) : next.add(item.id);
+                          return next;
+                        });
+                      }}
+                      className={`flex items-center gap-3 p-3 rounded-xl border transition-all text-left ${
+                        selected
+                          ? 'bg-purple-500/12 border-purple-500/35 shadow-[0_0_12px_#a855f715]'
+                          : 'bg-black/40 border-[#1e2d3d] hover:border-[#2a3f55]'
+                      }`}
+                    >
+                      {/* Checkbox */}
+                      <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-all ${
+                        selected ? 'bg-purple-500 border-purple-500' : 'border-[#2a3f55]'
+                      }`}>
+                        {selected && <CheckCircle2 size={12} className="text-white" />}
+                      </div>
+
+                      {item.image_url
+                        ? <img src={item.image_url} alt={item.name} className="w-9 h-9 rounded-lg object-cover shrink-0" />
+                        : <div className="w-9 h-9 rounded-lg bg-[#1e2d3d] flex items-center justify-center shrink-0">
+                            <Package size={16} className="text-gray-600" />
+                          </div>
+                      }
+                      <div className="min-w-0">
+                        <div className={`text-sm font-bold truncate ${selected ? 'text-white' : 'text-gray-300'}`}>
+                          {item.name}
+                        </div>
+                        <div className="text-[10px] text-gray-600">
+                          Expired {item.expires_at ? new Date(item.expires_at).toLocaleDateString() : ''}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Summary preview */}
+          {formTitle && formSelectedItems.size > 0 && (
+            <div className="p-3 rounded-xl bg-purple-500/5 border border-purple-500/15 space-y-1.5 text-xs">
+              <div className="flex justify-between text-gray-400">
+                <span>Prizes</span>
+                <span className="text-white font-bold">{formSelectedItems.size} item{formSelectedItems.size > 1 ? 's' : ''}</span>
+              </div>
+              <div className="flex justify-between text-gray-400">
+                <span>Winners to draw</span>
+                <span className="text-purple-400 font-bold">{formSelectedItems.size} (one per prize)</span>
+              </div>
+              <div className="flex justify-between text-gray-400">
                 <span>Ticket price</span>
-                <span className="text-purple-400 font-bold">{parseInt(formTicketPrice) || 0} DKP / ticket</span>
+                <span className="text-purple-400 font-bold">{parseInt(formTicketPrice) || 0} DKP each</span>
               </div>
-              {formMaxTickets && (
-                <div className="flex justify-between">
-                  <span>Max tickets</span>
-                  <span className="text-white font-bold">{formMaxTickets}</span>
+              {formDrawAt && (
+                <div className="flex justify-between text-gray-400">
+                  <span>Draw date</span>
+                  <span className="text-white font-bold">{new Date(formDrawAt).toLocaleString()}</span>
                 </div>
               )}
             </div>
           )}
 
           <div className="flex gap-3 justify-end">
-            <button onClick={() => setShowCreateForm(false)} disabled={formSaving}
-              className="px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 text-sm transition-colors">
+            <button onClick={() => { setShowCreateForm(false); setFormSelectedItems(new Set()); }}
+              disabled={formSaving}
+              className="px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 text-sm">
               Cancel
             </button>
-            <button onClick={handleCreate} disabled={formSaving}
+            <button onClick={handleCreate} disabled={formSaving || formSelectedItems.size === 0}
               className="btn-primary flex items-center gap-2 disabled:opacity-50">
               {formSaving ? <Loader2 size={14} className="animate-spin" /> : <Ticket size={14} />}
               Create Raffle
@@ -415,12 +563,18 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
         </div>
       )}
 
-      {/* ── Empty ── */}
+      {/* ── Empty state ── */}
       {!loading && raffles.length === 0 && (
         <div className="card p-16 text-center">
           <Ticket size={48} className="mx-auto text-gray-700 mb-4" />
           <p className="text-gray-400 font-medium">No raffles yet</p>
-          {isAdmin && <p className="text-gray-600 text-sm mt-1">Create the first raffle above</p>}
+          {isAdmin && (
+            <p className="text-gray-600 text-sm mt-1">
+              {queuedItems.length > 0
+                ? `${queuedItems.length} expired item${queuedItems.length > 1 ? 's' : ''} waiting — create a raffle above`
+                : 'Expired shop items will appear here for raffle'}
+            </p>
+          )}
         </div>
       )}
 
@@ -430,52 +584,69 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
           <div className="flex items-center gap-2 mb-4">
             <span className="w-2 h-2 rounded-full bg-purple-400 animate-pulse" />
             <span className="text-xs font-black uppercase tracking-widest text-gray-400">
-              Open — {openRaffles.length}
+              Live — {openRaffles.length}
             </span>
           </div>
 
-          <div className="space-y-4">
+          <div className="space-y-5">
             {openRaffles.map((raffle) => {
-              const isExpanded = expandedRaffle === raffle.id;
-              const raffleEntries = entries[raffle.id] || [];
-              const isBuying = buyingId === raffle.id;
-              const myTicketCount = myTickets(raffle.id);
-              const chance = winChance(raffle, raffle.id);
-              const soldPct = raffle.max_tickets
+              const isExpanded  = expandedRaffle === raffle.id;
+              const rafflePrizes   = prizes[raffle.id] || [];
+              const raffleEntries  = entries[raffle.id] || [];
+              const isBuying    = buyingId === raffle.id;
+              const myTicketCount  = myTickets(raffle.id);
+              const chance      = winChance(raffle, raffle.id);
+              const soldPct     = raffle.max_tickets
                 ? Math.round((raffle.tickets_sold / raffle.max_tickets) * 100) : null;
-              const isFull = raffle.max_tickets !== null && raffle.tickets_sold >= raffle.max_tickets;
+              const isFull      = raffle.max_tickets !== null && raffle.tickets_sold >= raffle.max_tickets;
 
               return (
                 <div key={raffle.id} className="card overflow-hidden border-purple-500/15">
-
-                  {/* Image */}
-                  {raffle.item_image && (
-                    <div className="h-44 bg-black overflow-hidden relative">
-                      <img src={raffle.item_image} alt={raffle.item_name}
-                        className="w-full h-full object-contain" />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-                      <div className="absolute bottom-3 left-4">
-                        <h3 className="text-xl font-black">{raffle.item_name}</h3>
-                      </div>
-                    </div>
-                  )}
-
                   <div className="p-5 space-y-4">
-                    {!raffle.item_image && (
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center shrink-0">
-                          <Package size={18} className="text-purple-400" />
+
+                    {/* Title + draw date */}
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <h3 className="text-lg font-black tracking-tight">{raffle.title}</h3>
+                        {raffle.description && (
+                          <p className="text-gray-500 text-xs mt-0.5">{raffle.description}</p>
+                        )}
+                      </div>
+                      {raffle.draw_at && (
+                        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-black/40 border border-[#1e2d3d] text-xs text-gray-400 shrink-0">
+                          <Clock size={11} />
+                          {new Date(raffle.draw_at).toLocaleDateString()}
                         </div>
-                        <h3 className="text-lg font-black">{raffle.item_name}</h3>
+                      )}
+                    </div>
+
+                    {/* Prizes list */}
+                    {rafflePrizes.length > 0 && (
+                      <div>
+                        <div className="text-[10px] text-gray-600 uppercase tracking-wider font-bold mb-2">
+                          {rafflePrizes.length} Prize{rafflePrizes.length !== 1 ? 's' : ''} · {raffle.winner_count} Winner{raffle.winner_count !== 1 ? 's' : ''} will be drawn
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                          {rafflePrizes.map((prize) => (
+                            <div key={prize.id}
+                              className="flex items-center gap-2 p-2 rounded-xl bg-black/40 border border-[#1e2d3d]">
+                              {prize.item_image
+                                ? <img src={prize.item_image} alt={prize.item_name} className="w-8 h-8 rounded-lg object-cover shrink-0" />
+                                : <div className="w-8 h-8 rounded-lg bg-[#1e2d3d] flex items-center justify-center shrink-0">
+                                    <Gift size={14} className="text-purple-400" />
+                                  </div>
+                              }
+                              <span className="text-xs text-gray-300 truncate font-medium">{prize.item_name}</span>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     )}
 
-                    {/* Stats row */}
+                    {/* Stats */}
                     <div className="grid grid-cols-3 gap-2">
                       <div className="p-3 rounded-xl bg-black/40 border border-[#1e2d3d] text-center">
-                        <div className="text-lg font-black text-purple-400 hud-number">
-                          {raffle.ticket_price}
-                        </div>
+                        <div className="text-lg font-black text-purple-400 hud-number">{raffle.ticket_price}</div>
                         <div className="text-[10px] text-gray-600 uppercase tracking-wider mt-0.5">DKP/ticket</div>
                       </div>
                       <div className="p-3 rounded-xl bg-black/40 border border-[#1e2d3d] text-center">
@@ -483,17 +654,15 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
                           {raffle.tickets_sold}
                           {raffle.max_tickets && <span className="text-gray-600 text-sm font-normal">/{raffle.max_tickets}</span>}
                         </div>
-                        <div className="text-[10px] text-gray-600 uppercase tracking-wider mt-0.5">Tickets Sold</div>
+                        <div className="text-[10px] text-gray-600 uppercase tracking-wider mt-0.5">Sold</div>
                       </div>
                       <div className="p-3 rounded-xl bg-black/40 border border-[#1e2d3d] text-center">
-                        <div className="text-lg font-black text-cyan-400 hud-number">
-                          {myTicketCount}
-                        </div>
-                        <div className="text-[10px] text-gray-600 uppercase tracking-wider mt-0.5">Your Tickets</div>
+                        <div className="text-lg font-black text-cyan-400 hud-number">{myTicketCount}</div>
+                        <div className="text-[10px] text-gray-600 uppercase tracking-wider mt-0.5">Yours</div>
                       </div>
                     </div>
 
-                    {/* Progress bar (if max tickets set) */}
+                    {/* Stock bar */}
                     {soldPct !== null && (
                       <div>
                         <div className="flex justify-between text-xs text-gray-500 mb-1">
@@ -503,11 +672,10 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
                           </span>
                         </div>
                         <div className="progress-bar">
-                          <div className="progress-fill"
-                            style={{
-                              width: `${soldPct}%`,
-                              background: soldPct >= 90 ? '#ef4444' : soldPct >= 60 ? '#f59e0b' : '#a855f7',
-                            }} />
+                          <div className="progress-fill" style={{
+                            width: `${soldPct}%`,
+                            background: soldPct >= 90 ? '#ef4444' : soldPct >= 60 ? '#f59e0b' : '#a855f7',
+                          }} />
                         </div>
                       </div>
                     )}
@@ -517,25 +685,19 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
                       <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-purple-500/5 border border-purple-500/15 text-xs text-purple-300">
                         <Trophy size={12} className="text-purple-400" />
                         Your current win chance: <span className="font-black text-purple-400 ml-1">{chance}%</span>
+                        {raffle.winner_count > 1 && (
+                          <span className="text-purple-600 ml-1">({raffle.winner_count} prizes up for grabs)</span>
+                        )}
                       </div>
                     )}
 
-                    {/* Scheduled draw */}
-                    {raffle.draw_at && (
-                      <div className="flex items-center gap-2 text-xs text-gray-500">
-                        <Clock size={11} />
-                        Scheduled draw: {new Date(raffle.draw_at).toLocaleString()}
-                      </div>
-                    )}
-
-                    {/* Ticket purchase */}
+                    {/* Ticket input */}
                     {!isFull ? (
                       <div className="flex gap-2">
                         <div className="flex-1 flex items-center gap-2 bg-black/60 border border-[#1e2d3d] rounded-xl px-3 focus-within:border-purple-500/50 transition-colors">
                           <Ticket size={14} className="text-purple-400 shrink-0" />
                           <input
-                            type="number"
-                            min="1"
+                            type="number" min="1"
                             value={ticketInputs[raffle.id] || ''}
                             onChange={(e) => setTicketInputs((p) => ({ ...p, [raffle.id]: e.target.value }))}
                             onKeyDown={(e) => e.key === 'Enter' && handleBuyTickets(raffle)}
@@ -554,27 +716,23 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
                           style={{ background: 'linear-gradient(135deg, #a855f7, #7c3aed)' }}
                           className="px-5 py-2.5 rounded-xl font-bold text-sm text-white disabled:opacity-50 flex items-center gap-2 hover:opacity-90 transition-opacity shadow-[0_0_20px_#a855f733]"
                         >
-                          {isBuying
-                            ? <Loader2 size={14} className="animate-spin" />
-                            : <Ticket size={14} />}
+                          {isBuying ? <Loader2 size={14} className="animate-spin" /> : <Ticket size={14} />}
                           Enter
                         </button>
                       </div>
                     ) : (
                       <div className="flex items-center justify-center gap-2 py-3 rounded-xl bg-red-500/8 border border-red-500/15 text-red-400 text-sm font-bold">
-                        <ShieldAlert size={15} /> Tickets sold out
+                        Tickets sold out
                       </div>
                     )}
 
-                    {/* Entries toggle + admin actions */}
+                    {/* Entries + admin actions */}
                     <div className="flex items-center justify-between pt-1">
-                      <button
-                        onClick={() => toggleExpand(raffle.id)}
-                        className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-300 transition-colors"
-                      >
+                      <button onClick={() => toggleExpand(raffle.id)}
+                        className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-300 transition-colors">
                         {isExpanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
                         <Users size={12} />
-                        {raffle.tickets_sold} ticket{raffle.tickets_sold !== 1 ? 's' : ''} — view entries
+                        {raffle.tickets_sold} ticket{raffle.tickets_sold !== 1 ? 's' : ''} · view entries
                       </button>
 
                       {isAdmin && (
@@ -582,24 +740,20 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
                           <button
                             onClick={() => handleDraw(raffle)}
                             disabled={drawingId === raffle.id || raffle.tickets_sold === 0}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 hover:bg-yellow-500/20 text-xs font-bold transition-all disabled:opacity-40"
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 hover:bg-yellow-500/20 text-xs font-bold disabled:opacity-40"
                           >
-                            {drawingId === raffle.id
-                              ? <Loader2 size={12} className="animate-spin" />
-                              : <Shuffle size={12} />}
-                            Draw Winner
+                            {drawingId === raffle.id ? <Loader2 size={12} className="animate-spin" /> : <Shuffle size={12} />}
+                            Draw {raffle.winner_count} Winner{raffle.winner_count > 1 ? 's' : ''}
                           </button>
-                          <button
-                            onClick={() => handleCancel(raffle.id)}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gray-500/10 text-gray-500 border border-gray-500/15 hover:bg-gray-500/20 text-xs font-bold transition-all"
-                          >
-                            Cancel
+                          <button onClick={() => setDeleteConfirm(raffle.id)}
+                            className="p-1.5 rounded-xl bg-red-500/8 text-red-500/60 hover:text-red-400 hover:bg-red-500/15 border border-red-500/10 transition-all">
+                            <Trash2 size={13} />
                           </button>
                         </div>
                       )}
                     </div>
 
-                    {/* Entries list */}
+                    {/* Expanded entries */}
                     {isExpanded && (
                       <div className="border-t border-[#1e2d3d] pt-3 animate-fade-in space-y-1.5">
                         <div className="text-xs text-gray-600 uppercase tracking-wider font-bold mb-2">
@@ -615,22 +769,14 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
                                   entry.member_id === myId
                                     ? 'bg-purple-500/5 border-purple-500/20'
                                     : 'bg-black/30 border-[#1e2d3d]'
-                                }`}
-                              >
-                                <div className="flex items-center gap-2">
-                                  <Users size={11} className="text-gray-600" />
-                                  <span className={entry.member_id === myId ? 'text-purple-300 font-bold' : 'text-gray-300'}>
-                                    {entry.member_name}
-                                    {entry.member_id === myId && <span className="text-purple-600 ml-1">(you)</span>}
-                                  </span>
-                                </div>
+                                }`}>
+                                <span className={entry.member_id === myId ? 'text-purple-300 font-bold' : 'text-gray-300'}>
+                                  {entry.member_name}
+                                  {entry.member_id === myId && <span className="text-purple-600 ml-1">(you)</span>}
+                                </span>
                                 <div className="flex items-center gap-3">
-                                  <span className="text-purple-400 font-black tabular-nums">
-                                    {entry.tickets}x
-                                  </span>
-                                  <span className="text-gray-600 tabular-nums">
-                                    {entry.total_cost} DKP
-                                  </span>
+                                  <span className="text-purple-400 font-black">{entry.tickets}x</span>
+                                  <span className="text-gray-600">{entry.total_cost} DKP</span>
                                 </div>
                               </div>
                             ))}
@@ -646,7 +792,7 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
         </div>
       )}
 
-      {/* ── Completed / Cancelled Raffles ── */}
+      {/* ── Completed Raffles ── */}
       {closedRaffles.length > 0 && (
         <div>
           <div className="flex items-center gap-2 mb-4">
@@ -655,57 +801,52 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
               Ended — {closedRaffles.length}
             </span>
           </div>
-
           <div className="grid md:grid-cols-2 gap-4">
-            {closedRaffles.map((raffle) => (
-              <div key={raffle.id} className="card p-4 opacity-70 hover:opacity-90 transition-opacity">
-                <div className="flex items-start justify-between gap-3 mb-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-xl bg-gray-500/10 border border-gray-500/15 flex items-center justify-center">
-                      <Ticket size={14} className="text-gray-500" />
-                    </div>
+            {closedRaffles.map((raffle) => {
+              const rafflePrizes = prizes[raffle.id] || [];
+              return (
+                <div key={raffle.id}
+                  className="card p-4 opacity-75 hover:opacity-90 transition-opacity cursor-pointer"
+                  onClick={() => toggleExpand(raffle.id)}>
+                  <div className="flex items-start justify-between gap-2 mb-3">
                     <div>
-                      <h3 className="font-black text-sm">{raffle.item_name}</h3>
-                      <span className={`text-[10px] font-black uppercase tracking-wider ${
-                        raffle.status === 'completed' ? 'text-green-500' :
-                        raffle.status === 'cancelled' ? 'text-red-500' : 'text-gray-500'
+                      <h3 className="font-black text-sm">{raffle.title}</h3>
+                      <span className={`text-[10px] font-black uppercase ${
+                        raffle.status === 'completed' ? 'text-green-500' : 'text-red-500'
                       }`}>{raffle.status}</span>
                     </div>
+                    {isAdmin && (
+                      <button onClick={(e) => { e.stopPropagation(); setDeleteConfirm(raffle.id); }}
+                        className="p-1.5 text-gray-700 hover:text-red-400 transition-colors">
+                        <Trash2 size={13} />
+                      </button>
+                    )}
                   </div>
-                  {isAdmin && (
-                    <button onClick={() => setDeleteConfirm(raffle.id)}
-                      className="p-1.5 rounded-lg text-gray-700 hover:text-red-400 hover:bg-red-400/10 transition-all">
-                      <Trash2 size={13} />
-                    </button>
+
+                  {/* Winners */}
+                  {rafflePrizes.filter((p) => p.winner_name).length > 0 && (
+                    <div className="space-y-1.5 mb-2">
+                      {rafflePrizes.filter((p) => p.winner_name).map((prize) => (
+                        <div key={prize.id}
+                          className="flex items-center gap-2 px-3 py-2 rounded-xl bg-yellow-500/8 border border-yellow-500/20">
+                          <Trophy size={12} className="text-yellow-400 shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <div className="text-[10px] text-gray-500 truncate">{prize.item_name}</div>
+                            <div className="text-xs font-black text-yellow-400">{prize.winner_name}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {raffle.completed_at && (
+                    <p className="text-[11px] text-gray-700">
+                      Drawn {new Date(raffle.completed_at).toLocaleDateString()}
+                    </p>
                   )}
                 </div>
-
-                {/* Winner */}
-                {raffle.winner_name && (
-                  <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-yellow-500/8 border border-yellow-500/20 mb-2">
-                    <Trophy size={13} className="text-yellow-400 shrink-0" />
-                    <div>
-                      <div className="text-[10px] text-gray-500 uppercase tracking-wider">Winner</div>
-                      <div className="text-sm font-black text-yellow-400">{raffle.winner_name}</div>
-                    </div>
-                    <div className="ml-auto text-right">
-                      <div className="text-[10px] text-gray-500">Total entries</div>
-                      <div className="text-sm font-bold text-gray-300 tabular-nums">{raffle.tickets_sold}</div>
-                    </div>
-                  </div>
-                )}
-
-                {raffle.status === 'cancelled' && (
-                  <p className="text-xs text-gray-600 text-center py-1">Raffle was cancelled</p>
-                )}
-
-                {raffle.completed_at && (
-                  <p className="text-[11px] text-gray-700 mt-1">
-                    Drawn on {new Date(raffle.completed_at).toLocaleDateString()}
-                  </p>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
