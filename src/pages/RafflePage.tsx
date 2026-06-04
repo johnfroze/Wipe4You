@@ -5,7 +5,7 @@ import {
   getRafflePrizes, addRafflePrize,
   getRaffleEntries, enterRaffle, drawRaffleWinners,
   getExpiredQueuedItems, assignItemsToRaffle,
-  expireShopItems,
+  expireShopItems, getDistinctEventNames,
 } from '@/lib/supabase';
 import type { CurrentUser, Raffle, RafflePrize, RaffleEntry } from '@/types';
 import {
@@ -13,7 +13,7 @@ import {
   X, CheckCircle2, AlertTriangle, Loader2,
   ChevronDown, ChevronUp, Shuffle, Clock,
   Package, CalendarClock, RefreshCw,
-  Gift, Crown, Info,
+  Gift, Crown, Info, ShieldCheck, Lock,
 } from 'lucide-react';
 
 interface Props {
@@ -100,6 +100,7 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
   const [prizes, setPrizes] = useState<Record<number, RafflePrize[]>>({});
   const [entries, setEntries] = useState<Record<number, RaffleEntry[]>>({});
   const [queuedItems, setQueuedItems] = useState<QueuedItem[]>([]);
+  const [eventNames, setEventNames] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedRaffle, setExpandedRaffle] = useState<number | null>(null);
   const [ticketInputs, setTicketInputs] = useState<Record<number, string>>({});
@@ -112,6 +113,19 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [forceChecking, setForceChecking] = useState(false);
   const [liveDkp, setLiveDkp] = useState(currentUser?.member.dkp || 0);
+  const [myAttendedEvents, setMyAttendedEvents] = useState<Set<string>>(new Set());
+
+  // Load events this member has attended (for eligibility check)
+  const loadMyAttendance = useCallback(async () => {
+    if (!myId) return;
+    const { data } = await supabase
+      .from('attendance_log')
+      .select('event_name')
+      .eq('member_id', myId);
+    if (data) {
+      setMyAttendedEvents(new Set(data.map((r: any) => (r.event_name as string).toLowerCase())));
+    }
+  }, [myId]);
 
   // Create form
   const [formTitle, setFormTitle] = useState('');
@@ -119,6 +133,7 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
   const [formTicketPrice, setFormTicketPrice] = useState('10');
   const [formMaxTickets, setFormMaxTickets] = useState('');
   const [formDrawAt, setFormDrawAt] = useState('');
+  const [formRequiredEvent, setFormRequiredEvent] = useState('');
   const [formSelectedItems, setFormSelectedItems] = useState<Set<number>>(new Set());
   const [formSaving, setFormSaving] = useState(false);
 
@@ -131,12 +146,14 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
     setLoading(true);
     try {
       await expireShopItems();
-      const [raffleData, queueData] = await Promise.all([
+      const [raffleData, queueData, eventData] = await Promise.all([
         getRaffles(),
         getExpiredQueuedItems(),
+        getDistinctEventNames(),
       ]);
       setRaffles(raffleData);
       setQueuedItems(queueData as QueuedItem[]);
+      setEventNames(eventData);
     } catch (err) {
       console.error(err);
       showToast('Failed to load raffles', 'error');
@@ -156,13 +173,14 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
 
   useEffect(() => {
     loadAll();
+    loadMyAttendance();
     const channel = supabase
       .channel('raffles-v2-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'raffles' }, loadAll)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'shop_items' }, loadAll)
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [loadAll]);
+  }, [loadAll, loadMyAttendance]);
 
   useEffect(() => {
     if (currentUser?.member) setLiveDkp(currentUser.member.dkp);
@@ -195,13 +213,14 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
     setFormSaving(true);
     try {
       const raffleId = await createRaffle({
-        title:        formTitle.trim(),
-        description:  formDesc.trim() || null,
-        ticket_price: price,
-        max_tickets:  formMaxTickets ? parseInt(formMaxTickets) : null,
-        winner_count: formSelectedItems.size, // one winner per prize item
-        draw_at:      formDrawAt ? new Date(formDrawAt).toISOString() : null,
-        created_by:   currentUser?.member.username || 'Admin',
+        title:               formTitle.trim(),
+        description:         formDesc.trim() || null,
+        ticket_price:        price,
+        max_tickets:         formMaxTickets ? parseInt(formMaxTickets) : null,
+        winner_count:        formSelectedItems.size,
+        draw_at:             formDrawAt ? new Date(formDrawAt).toISOString() : null,
+        required_event_name: formRequiredEvent.trim() || null,
+        created_by:          currentUser?.member.username || 'Admin',
       });
 
       // Add each selected item as a prize
@@ -219,7 +238,7 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
       await assignItemsToRaffle(Array.from(formSelectedItems), raffleId);
 
       setFormTitle(''); setFormDesc(''); setFormTicketPrice('10');
-      setFormMaxTickets(''); setFormDrawAt('');
+      setFormMaxTickets(''); setFormDrawAt(''); setFormRequiredEvent('');
       setFormSelectedItems(new Set());
       setShowCreateForm(false);
       showToast(`Raffle "${formTitle}" created with ${formSelectedItems.size} prize${formSelectedItems.size > 1 ? 's' : ''}!`, 'success');
@@ -250,6 +269,9 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
           await loadPrizesAndEntries(raffle.id);
           await loadAll();
           showToast(`${count} ticket${count > 1 ? 's' : ''} bought for ${cost.toLocaleString()} DKP!`, 'success');
+          break;
+        case 'not_eligible':
+          showToast(`You must have attended "${raffle.required_event_name}" to enter this raffle`, 'error');
           break;
         case 'insufficient_dkp': showToast('Not enough DKP', 'error'); break;
         case 'raffle_closed':    showToast('This raffle is no longer open', 'error'); break;
@@ -457,6 +479,44 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
                   className="w-full bg-black/60 border border-[#1e2d3d] rounded-xl pl-9 pr-3 py-3 text-sm focus:border-purple-500/50 focus:outline-none" />
               </div>
             </div>
+
+            {/* Attendance gate */}
+            <div className="sm:col-span-2">
+              <label className="text-xs text-gray-500 mb-1 flex items-center gap-1.5 block">
+                <ShieldCheck size={12} className="text-purple-400" />
+                Attendance Requirement (optional)
+              </label>
+              <p className="text-[11px] text-gray-600 mb-2">
+                Only members who attended this event can buy tickets. Leave blank for open entry.
+              </p>
+              <div className="flex gap-2">
+                <select
+                  value={formRequiredEvent}
+                  onChange={(e) => setFormRequiredEvent(e.target.value)}
+                  className="flex-1 bg-black/60 border border-[#1e2d3d] rounded-xl px-3 py-3 text-sm focus:border-purple-500/50 focus:outline-none appearance-none"
+                >
+                  <option value="">— Open to all members —</option>
+                  {eventNames.map((name) => (
+                    <option key={name} value={name}>{name}</option>
+                  ))}
+                </select>
+                {formRequiredEvent && (
+                  <button
+                    type="button"
+                    onClick={() => setFormRequiredEvent('')}
+                    className="px-3 rounded-xl bg-white/5 hover:bg-white/10 text-gray-500 hover:text-white transition-colors text-xs"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+              {formRequiredEvent && (
+                <div className="mt-2 flex items-center gap-2 px-3 py-2 rounded-xl bg-purple-500/8 border border-purple-500/20 text-xs text-purple-300">
+                  <Lock size={11} className="text-purple-400" />
+                  Only members who attended <span className="font-bold text-white mx-1">"{formRequiredEvent}"</span> can enter
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Select prizes from expired queue */}
@@ -539,6 +599,12 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
                 <span>Ticket price</span>
                 <span className="text-purple-400 font-bold">{parseInt(formTicketPrice) || 0} DKP each</span>
               </div>
+              {formRequiredEvent && (
+                <div className="flex justify-between text-gray-400">
+                  <span>Attendance required</span>
+                  <span className="text-purple-400 font-bold">{formRequiredEvent}</span>
+                </div>
+              )}
               {formDrawAt && (
                 <div className="flex justify-between text-gray-400">
                   <span>Draw date</span>
@@ -549,7 +615,7 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
           )}
 
           <div className="flex gap-3 justify-end">
-            <button onClick={() => { setShowCreateForm(false); setFormSelectedItems(new Set()); }}
+            <button onClick={() => { setShowCreateForm(false); setFormSelectedItems(new Set()); setFormRequiredEvent(''); }}
               disabled={formSaving}
               className="px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 text-sm">
               Cancel
@@ -599,6 +665,12 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
               const soldPct     = raffle.max_tickets
                 ? Math.round((raffle.tickets_sold / raffle.max_tickets) * 100) : null;
               const isFull      = raffle.max_tickets !== null && raffle.tickets_sold >= raffle.max_tickets;
+
+              // Eligibility check
+              const isGated = !!raffle.required_event_name;
+              const isEligible = !isGated ||
+                isAdmin ||
+                myAttendedEvents.has((raffle.required_event_name || '').toLowerCase());
 
               return (
                 <div key={raffle.id} className="card overflow-hidden border-purple-500/15">
@@ -691,8 +763,37 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
                       </div>
                     )}
 
+                    {/* Attendance requirement banner */}
+                    {isGated && (
+                      <div className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-xs ${
+                        isEligible
+                          ? 'bg-green-500/8 border-green-500/20 text-green-300'
+                          : 'bg-red-500/8 border-red-500/20 text-red-300'
+                      }`}>
+                        {isEligible
+                          ? <ShieldCheck size={14} className="text-green-400 shrink-0" />
+                          : <Lock size={14} className="text-red-400 shrink-0" />}
+                        <div>
+                          <span className="font-bold">
+                            {isEligible ? 'You are eligible' : 'Attendance required'}
+                          </span>
+                          <span className="text-gray-500 ml-1">
+                            — must have attended
+                            <span className={`font-bold mx-1 ${isEligible ? 'text-green-400' : 'text-red-400'}`}>
+                              "{raffle.required_event_name}"
+                            </span>
+                            {!isEligible && '(you have not attended this event)'}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Ticket input */}
-                    {!isFull ? (
+                    {!isFull && !isEligible ? (
+                      <div className="flex items-center justify-center gap-2 py-3 rounded-xl bg-red-500/8 border border-red-500/15 text-red-400 text-sm font-bold">
+                        <Lock size={14} /> You cannot enter this raffle
+                      </div>
+                    ) : !isFull ? (
                       <div className="flex gap-2">
                         <div className="flex-1 flex items-center gap-2 bg-black/60 border border-[#1e2d3d] rounded-xl px-3 focus-within:border-purple-500/50 transition-colors">
                           <Ticket size={14} className="text-purple-400 shrink-0" />
