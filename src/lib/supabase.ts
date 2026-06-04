@@ -648,19 +648,21 @@ export async function createRaffle(r: {
   max_tickets?: number | null;
   winner_count: number;
   draw_at?: string | null;
+  required_event_name?: string | null;
   created_by: string;
 }): Promise<number> {
   const { data, error } = await supabase
     .from('raffles')
     .insert({
-      title:        r.title,
-      description:  r.description || null,
-      ticket_price: r.ticket_price,
-      max_tickets:  r.max_tickets || null,
-      winner_count: r.winner_count,
-      status:       'open',
-      draw_at:      r.draw_at || null,
-      created_by:   r.created_by,
+      title:               r.title,
+      description:         r.description || null,
+      ticket_price:        r.ticket_price,
+      max_tickets:         r.max_tickets || null,
+      winner_count:        r.winner_count,
+      status:              'open',
+      draw_at:             r.draw_at || null,
+      required_event_name: r.required_event_name || null,
+      created_by:          r.created_by,
     })
     .select('id')
     .single();
@@ -750,6 +752,17 @@ export async function assignItemsToRaffle(itemIds: number[], raffleId: number): 
     .update({ raffle_id: raffleId })
     .in('id', itemIds);
   if (error) throw error;
+}
+
+// Get all distinct event names from attendance_log for the admin dropdown
+export async function getDistinctEventNames(): Promise<string[]> {
+  const { data, error } = await supabase
+    .from('attendance_log')
+    .select('event_name')
+    .order('event_name');
+  if (error) throw error;
+  const unique = [...new Set((data || []).map((r: any) => r.event_name as string))];
+  return unique;
 }
 
 // =========================
