@@ -7,6 +7,15 @@ import {
   Loader2, Lock, ShieldAlert, Timer, CalendarClock, Ticket,
 } from 'lucide-react';
 
+// Returns current local datetime string for datetime-local inputs
+// e.g. "2026-06-05T14:30"
+function getLocalDateTimeString(offsetHours = 0): string {
+  const d = new Date(Date.now() + offsetHours * 3600000);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+
 interface Props {
   currentUser: CurrentUser | null;
   onDkpChange: () => void;
@@ -73,7 +82,9 @@ function EditItemModal({
   const [imageUrl, setImageUrl] = useState(item.image_url || '');
   const [description, setDescription] = useState(item.description || '');
   const [expiresAt, setExpiresAt] = useState(
-    item.expires_at ? new Date(item.expires_at).toISOString().slice(0, 16) : ''
+    item.expires_at
+      ? new Date(item.expires_at).toISOString().slice(0, 16)
+      : getLocalDateTimeString(24 * 7)  // default: 7 days from now
   );
   const [saving, setSaving] = useState(false);
 
@@ -202,7 +213,7 @@ export function ShopPage({ currentUser, onDkpChange }: Props) {
   const [itemName, setItemName] = useState('');
   const [itemPrice, setItemPrice] = useState('');
   const [itemStock, setItemStock] = useState('');
-  const [itemExpiresAt, setItemExpiresAt] = useState('');
+  const [itemExpiresAt, setItemExpiresAt] = useState(() => getLocalDateTimeString(24 * 7));
   const [itemImage, setItemImage] = useState<File | null>(null);
   const [addingItem, setAddingItem] = useState(false);
 
@@ -336,7 +347,7 @@ export function ShopPage({ currentUser, onDkpChange }: Props) {
       setItemName('');
       setItemPrice('');
       setItemStock('');
-      setItemExpiresAt('');
+      setItemExpiresAt(getLocalDateTimeString(24 * 7));
       setItemImage(null);
       await loadItems();
       showToast(`"${itemName}" added to shop`, 'success');

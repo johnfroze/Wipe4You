@@ -1,4 +1,13 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
+
+// Returns current local datetime in the format datetime-local inputs expect
+// e.g. "2026-06-05T14:30" — pre-filled as default, user can adjust
+function getLocalDateTimeString(offsetHours = 0): string {
+  const d = new Date(Date.now() + offsetHours * 3600000);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 import {
   supabase,
   getRaffles, createRaffle, deleteRaffle,
@@ -6,6 +15,7 @@ import {
   getRaffleEntries, enterRaffle, drawRaffleWinners,
   getExpiredQueuedItems, assignItemsToRaffle,
   expireShopItems, getDistinctEventNames,
+  cancelRaffleWithRefund,
 } from '@/lib/supabase';
 import type { CurrentUser, Raffle, RafflePrize, RaffleEntry } from '@/types';
 import {
@@ -133,7 +143,7 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
   const [formDesc, setFormDesc] = useState('');
   const [formTicketPrice, setFormTicketPrice] = useState('10');
   const [formMaxTickets, setFormMaxTickets] = useState('');
-  const [formDrawAt, setFormDrawAt] = useState('');
+  const [formDrawAt, setFormDrawAt] = useState(() => getLocalDateTimeString(24));
   const [formRequiredEvent, setFormRequiredEvent] = useState('');
   const [formSelectedItems, setFormSelectedItems] = useState<Set<number>>(new Set());
   const [formSaving, setFormSaving] = useState(false);
@@ -328,6 +338,31 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
     finally { setDeleteLoading(false); setDeleteConfirm(null); }
   };
 
+  // ── Cancel with full DKP refund ──
+  const [cancelConfirm, setCancelConfirm] = useState<number | null>(null);
+  const [cancelLoading, setCancelLoading] = useState(false);
+
+  const handleCancelWithRefund = async () => {
+    if (!cancelConfirm) return;
+    setCancelLoading(true);
+    try {
+      const refunded = await cancelRaffleWithRefund(cancelConfirm);
+      await onDkpChange();
+      await loadAll();
+      showToast(
+        refunded > 0
+          ? `Raffle cancelled — ${refunded} member${refunded > 1 ? 's' : ''} refunded`
+          : 'Raffle cancelled (no entries to refund)',
+        'success'
+      );
+    } catch (err: any) {
+      showToast(`Cancel failed: ${err?.message || 'Unknown error'}`, 'error');
+    } finally {
+      setCancelLoading(false);
+      setCancelConfirm(null);
+    }
+  };
+
   // Toggle expand
   const toggleExpand = async (id: number) => {
     if (expandedRaffle === id) { setExpandedRaffle(null); return; }
@@ -369,6 +404,30 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
                 className="px-4 py-2 rounded-xl text-sm bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 flex items-center gap-2 disabled:opacity-50">
                 {deleteLoading && <Loader2 size={13} className="animate-spin" />}
                 Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {cancelConfirm !== null && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm">
+          <div className="bg-[#0d1117] border border-[#1e2d3d] rounded-2xl p-6 w-full max-w-sm shadow-2xl space-y-4 animate-fade-in">
+            <h3 className="font-bold flex items-center gap-2">
+              <AlertTriangle size={16} className="text-yellow-400" /> Cancel Raffle
+            </h3>
+            <p className="text-sm text-gray-400">
+              This will cancel the raffle and <span className="text-yellow-400 font-bold">fully refund all DKP</span> spent on tickets to every participant. Their refunds will also appear in the DKP Log.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button onClick={() => setCancelConfirm(null)} disabled={cancelLoading}
+                className="px-4 py-2 rounded-xl text-sm bg-white/5 hover:bg-white/10 text-gray-300">
+                Keep Raffle
+              </button>
+              <button onClick={handleCancelWithRefund} disabled={cancelLoading}
+                className="px-4 py-2 rounded-xl text-sm bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 hover:bg-yellow-500/30 flex items-center gap-2 disabled:opacity-50">
+                {cancelLoading && <Loader2 size={13} className="animate-spin" />}
+                Cancel & Refund All
               </button>
             </div>
           </div>
@@ -876,7 +935,7 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
                       </button>
 
                       {isAdmin && (
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 flex-wrap">
                           <button
                             onClick={() => handleDraw(raffle)}
                             disabled={drawingId === raffle.id || raffle.tickets_sold === 0}
@@ -884,6 +943,13 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
                           >
                             {drawingId === raffle.id ? <Loader2 size={12} className="animate-spin" /> : <Shuffle size={12} />}
                             Draw {raffle.winner_count} Winner{raffle.winner_count > 1 ? 's' : ''}
+                          </button>
+                          <button
+                            onClick={() => setCancelConfirm(raffle.id)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-yellow-500/8 text-yellow-500/70 hover:text-yellow-400 hover:bg-yellow-500/15 border border-yellow-500/10 text-xs font-bold transition-all"
+                          >
+                            <AlertTriangle size={12} />
+                            Cancel & Refund
                           </button>
                           <button onClick={() => setDeleteConfirm(raffle.id)}
                             className="p-1.5 rounded-xl bg-red-500/8 text-red-500/60 hover:text-red-400 hover:bg-red-500/15 border border-red-500/10 transition-all">
