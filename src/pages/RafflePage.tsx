@@ -26,6 +26,7 @@ interface QueuedItem {
   name: string;
   image_url: string | null;
   price: number;
+  current_stock: number;
   expires_at: string | null;
   raffle_id: number | null;
 }
@@ -212,36 +213,51 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
 
     setFormSaving(true);
     try {
+      const selectedItemObjects = queuedItems.filter((i) => formSelectedItems.has(i.id));
+
+      // Total winners = sum of all stock quantities across selected items
+      const totalWinners = selectedItemObjects.reduce(
+        (sum, item) => sum + Math.max(1, item.current_stock),
+        0
+      );
+
       const raffleId = await createRaffle({
         title:               formTitle.trim(),
         description:         formDesc.trim() || null,
         ticket_price:        price,
         max_tickets:         formMaxTickets ? parseInt(formMaxTickets) : null,
-        winner_count:        formSelectedItems.size,
+        winner_count:        totalWinners,
         draw_at:             formDrawAt ? new Date(formDrawAt).toISOString() : null,
         required_event_name: formRequiredEvent.trim() || null,
         created_by:          currentUser?.member.username || 'Admin',
       });
 
-      // Add each selected item as a prize
-      const selectedItemObjects = queuedItems.filter((i) => formSelectedItems.has(i.id));
+      // Add one prize slot per unit of stock for each selected item
       for (const item of selectedItemObjects) {
-        await addRafflePrize({
-          raffle_id:  raffleId,
-          item_id:    item.id,
-          item_name:  item.name,
-          item_image: item.image_url,
-        });
+        const units = Math.max(1, item.current_stock);
+        for (let u = 0; u < units; u++) {
+          await addRafflePrize({
+            raffle_id:  raffleId,
+            item_id:    item.id,
+            item_name:  units > 1 ? `${item.name} #${u + 1}` : item.name,
+            item_image: item.image_url,
+          });
+        }
       }
 
       // Mark items as assigned to this raffle
       await assignItemsToRaffle(Array.from(formSelectedItems), raffleId);
 
+      const t = formTitle;
+      const sz = formSelectedItems.size;
       setFormTitle(''); setFormDesc(''); setFormTicketPrice('10');
       setFormMaxTickets(''); setFormDrawAt(''); setFormRequiredEvent('');
       setFormSelectedItems(new Set());
       setShowCreateForm(false);
-      showToast(`Raffle "${formTitle}" created with ${formSelectedItems.size} prize${formSelectedItems.size > 1 ? 's' : ''}!`, 'success');
+      showToast(
+        `Raffle "${t}" created — ${totalWinners} prize slot${totalWinners > 1 ? 's' : ''} from ${sz} item${sz > 1 ? 's' : ''}!`,
+        'success'
+      );
       await loadAll();
     } catch (err: any) {
       console.error(err);
@@ -427,8 +443,10 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
                   }
                   <div className="min-w-0">
                     <div className="text-xs font-bold truncate">{item.name}</div>
-                    <div className="text-[10px] text-gray-600">
-                      {item.expires_at ? new Date(item.expires_at).toLocaleDateString() : ''}
+                    <div className="text-[10px] text-gray-600 flex items-center gap-1">
+                      <span>{item.expires_at ? new Date(item.expires_at).toLocaleDateString() : ''}</span>
+                      <span className="text-gray-700">·</span>
+                      <span className="text-purple-500 font-bold">{Math.max(1, item.current_stock)}x</span>
                     </div>
                   </div>
                 </div>
@@ -526,7 +544,16 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
                 Select Prize Items *
               </label>
               <span className="text-xs text-purple-400 font-bold">
-                {formSelectedItems.size} selected · {formSelectedItems.size} winner{formSelectedItems.size !== 1 ? 's' : ''} will be drawn
+                {formSelectedItems.size} item{formSelectedItems.size !== 1 ? 's' : ''}
+                {' · '}
+                {queuedItems
+                  .filter((i) => formSelectedItems.has(i.id))
+                  .reduce((sum, i) => sum + Math.max(1, i.current_stock), 0)
+                } prize slot{
+                  queuedItems
+                    .filter((i) => formSelectedItems.has(i.id))
+                    .reduce((sum, i) => sum + Math.max(1, i.current_stock), 0) !== 1 ? 's' : ''
+                } · same number of winners
               </span>
             </div>
 
@@ -573,8 +600,12 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
                         <div className={`text-sm font-bold truncate ${selected ? 'text-white' : 'text-gray-300'}`}>
                           {item.name}
                         </div>
-                        <div className="text-[10px] text-gray-600">
-                          Expired {item.expires_at ? new Date(item.expires_at).toLocaleDateString() : ''}
+                        <div className="text-[10px] text-gray-600 flex items-center gap-1.5">
+                          <span>Expired {item.expires_at ? new Date(item.expires_at).toLocaleDateString() : ''}</span>
+                          <span className="text-gray-700">·</span>
+                          <span className={selected ? 'text-purple-400 font-bold' : 'text-gray-500'}>
+                            {Math.max(1, item.current_stock)} unit{Math.max(1, item.current_stock) !== 1 ? 's' : ''} = {Math.max(1, item.current_stock)} prize slot{Math.max(1, item.current_stock) !== 1 ? 's' : ''}
+                          </span>
                         </div>
                       </div>
                     </button>
@@ -589,11 +620,19 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
             <div className="p-3 rounded-xl bg-purple-500/5 border border-purple-500/15 space-y-1.5 text-xs">
               <div className="flex justify-between text-gray-400">
                 <span>Prizes</span>
-                <span className="text-white font-bold">{formSelectedItems.size} item{formSelectedItems.size > 1 ? 's' : ''}</span>
+                <span className="text-white font-bold">
+                  {queuedItems.filter((i) => formSelectedItems.has(i.id)).reduce((sum, i) => sum + Math.max(1, i.current_stock), 0)} slots
+                  <span className="text-gray-600 font-normal ml-1">
+                    ({formSelectedItems.size} item type{formSelectedItems.size > 1 ? 's' : ''})
+                  </span>
+                </span>
               </div>
               <div className="flex justify-between text-gray-400">
                 <span>Winners to draw</span>
-                <span className="text-purple-400 font-bold">{formSelectedItems.size} (one per prize)</span>
+                <span className="text-purple-400 font-bold">
+                  {queuedItems.filter((i) => formSelectedItems.has(i.id)).reduce((sum, i) => sum + Math.max(1, i.current_stock), 0)}
+                  <span className="text-gray-600 font-normal ml-1">(one per prize slot)</span>
+                </span>
               </div>
               <div className="flex justify-between text-gray-400">
                 <span>Ticket price</span>
