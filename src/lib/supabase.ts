@@ -738,7 +738,7 @@ export async function drawRaffleWinners(raffleId: number): Promise<
 export async function getExpiredQueuedItems() {
   const { data, error } = await supabase
     .from('shop_items')
-    .select('id, name, image_url, price, expires_at, raffle_id')
+    .select('id, name, image_url, price, current_stock, expires_at, raffle_id')
     .eq('transferred_to_raffle', true)
     .is('raffle_id', null)
     .order('expires_at', { ascending: true });
