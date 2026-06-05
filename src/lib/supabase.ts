@@ -680,6 +680,16 @@ export async function deleteRaffle(id: number): Promise<void> {
   if (error) throw error;
 }
 
+// Atomic cancel: refunds all ticket buyers and logs each refund in dkp_log
+// Returns number of members refunded
+export async function cancelRaffleWithRefund(raffleId: number): Promise<number> {
+  const { data, error } = await supabase.rpc('cancel_raffle_with_refund', {
+    p_raffle_id: raffleId,
+  });
+  if (error) throw error;
+  return (data as number) || 0;
+}
+
 export async function getRafflePrizes(raffleId: number): Promise<RafflePrize[]> {
   const { data, error } = await supabase
     .from('raffle_prizes')
