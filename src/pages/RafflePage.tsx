@@ -1170,7 +1170,7 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
                                     wi === 2 ? 'text-orange-400' : 'text-white'
                                   }`}>
                                     {winner.name}
-                                    {winner.name === myUsername && (
+                                    {winner.name === (currentUser?.member.username || '') && (
                                       <span className="text-[10px] font-normal text-cyan-600 ml-2">(you)</span>
                                     )}
                                   </div>
