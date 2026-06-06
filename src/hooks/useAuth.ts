@@ -2,6 +2,7 @@ import {
   useState,
   useEffect,
   useRef,
+  useCallback,
 } from 'react';
 
 import {
@@ -20,16 +21,15 @@ import { checkGuildMember } from '@/lib/discord';
 
 export function useAuth() {
   const [currentUser, setCurrentUser] =
-    useState<CurrentUser | null>(null);
+    useState<CurrentUser | null>(
+      null
+    );
 
   const [loading, setLoading] =
     useState(true);
 
-  // null = not checked yet, string = error message to show in UI
-  const [authError, setAuthError] =
-    useState<string | null>(null);
-
-  const initStarted = useRef(false);
+  const initStarted =
+    useRef(false);
 
   // HANDLE USER LOGIN
   const handleUser = async (
@@ -42,9 +42,11 @@ export function useAuth() {
 
       if (!allowed) {
         await supabase.auth.signOut();
-        setAuthError(
-          'You must be a member of the guild Discord server to access this dashboard.'
+
+        alert(
+          'You must join the guild Discord server first.'
         );
+
         return;
       }
 
@@ -264,7 +266,6 @@ export function useAuth() {
   return {
     currentUser,
     loading,
-    authError,
     isLeader,
     isElder,
     isAdmin,
@@ -273,62 +274,45 @@ export function useAuth() {
 
 // MEMBERS
 export function useMembers() {
-  const [members, setMembers] =
-    useState<Member[]>([]);
+  const [members, setMembers] = useState<Member[]>([]);
+  const [loading, setLoading] = useState(false);
+  const loaded = useRef(false);
+  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const [loading, setLoading] =
-    useState(false);
+  const loadMembers = useCallback(async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('members')
+        .select('*')
+        .order('dkp', { ascending: false });
+      if (error) throw error;
+      setMembers(data || []);
+    } catch (err) {
+      console.error('Failed to load members:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-  const loaded =
-    useRef(false);
-
-  const loadMembers =
-    async () => {
-      setLoading(true);
-
-      try {
-        const {
-          data,
-          error,
-        } = await supabase
-          .from('members')
-          .select('*')
-          .order('dkp', {
-            ascending:
-              false,
-          });
-
-        if (error) {
-          throw error;
-        }
-
-        setMembers(
-          data || []
-        );
-      } catch (err) {
-        console.error(
-          'Failed to load members:',
-          err
-        );
-      } finally {
-        setLoading(false);
-      }
-    };
+  // Debounced version — collapses rapid-fire realtime events
+  // (e.g. 10 members updated at once) into a single fetch 150ms later
+  const loadMembersDebounced = useCallback(() => {
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    debounceTimer.current = setTimeout(() => {
+      loadMembers();
+    }, 150);
+  }, [loadMembers]);
 
   useEffect(() => {
-    if (
-      loaded.current
-    )
-      return;
-
+    if (loaded.current) return;
     loaded.current = true;
-
     loadMembers();
-  }, []);
+  }, [loadMembers]);
 
   return {
     members,
     loading,
-    loadMembers,
+    loadMembers: loadMembersDebounced,
   };
 }
