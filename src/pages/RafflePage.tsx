@@ -153,6 +153,15 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
     setTimeout(() => setToast(null), 5000);
   }, []);
 
+  const loadPrizesAndEntries = useCallback(async (raffleId: number) => {
+    const [p, e] = await Promise.all([
+      getRafflePrizes(raffleId),
+      getRaffleEntries(raffleId),
+    ]);
+    setPrizes((prev) => ({ ...prev, [raffleId]: p }));
+    setEntries((prev) => ({ ...prev, [raffleId]: e }));
+  }, []);
+
   const loadAll = useCallback(async () => {
     setLoading(true);
     try {
@@ -165,22 +174,20 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
       setRaffles(raffleData);
       setQueuedItems(queueData as QueuedItem[]);
       setEventNames(eventData);
+
+      // Auto-load prizes for all completed/cancelled raffles
+      // so winner summaries are visible without clicking expand
+      const closedIds = raffleData
+        .filter((r) => r.status !== 'open')
+        .map((r) => r.id);
+      await Promise.all(closedIds.map((id) => loadPrizesAndEntries(id)));
     } catch (err) {
       console.error(err);
       showToast('Failed to load raffles', 'error');
     } finally {
       setLoading(false);
     }
-  }, [showToast]);
-
-  const loadPrizesAndEntries = useCallback(async (raffleId: number) => {
-    const [p, e] = await Promise.all([
-      getRafflePrizes(raffleId),
-      getRaffleEntries(raffleId),
-    ]);
-    setPrizes((prev) => ({ ...prev, [raffleId]: p }));
-    setEntries((prev) => ({ ...prev, [raffleId]: e }));
-  }, []);
+  }, [showToast, loadPrizesAndEntries]);
 
   useEffect(() => {
     loadAll();
@@ -1007,48 +1014,222 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
               Ended — {closedRaffles.length}
             </span>
           </div>
-          <div className="grid md:grid-cols-2 gap-4">
+          <div className="space-y-4">
             {closedRaffles.map((raffle) => {
               const rafflePrizes = prizes[raffle.id] || [];
+              const isExpanded   = expandedRaffle === raffle.id;
+
+              // ── Group prizes by winner, sort by item count desc ──
+              const winnerMap = new Map<string, {
+                name: string;
+                items: { item_name: string; count: number; image: string | null }[];
+                total: number;
+              }>();
+
+              rafflePrizes
+                .filter((p) => p.winner_name)
+                .forEach((p) => {
+                  const existing = winnerMap.get(p.winner_name!);
+                  if (existing) {
+                    const itemEntry = existing.items.find((i) => i.item_name === p.item_name);
+                    if (itemEntry) {
+                      itemEntry.count++;
+                    } else {
+                      existing.items.push({ item_name: p.item_name, count: 1, image: p.item_image });
+                    }
+                    existing.total++;
+                  } else {
+                    winnerMap.set(p.winner_name!, {
+                      name:  p.winner_name!,
+                      items: [{ item_name: p.item_name, count: 1, image: p.item_image }],
+                      total: 1,
+                    });
+                  }
+                });
+
+              // Sort winners by total items won desc, then sort items within each winner desc
+              const winners = Array.from(winnerMap.values())
+                .map((w) => ({
+                  ...w,
+                  items: w.items.sort((a, b) => b.count - a.count),
+                }))
+                .sort((a, b) => b.total - a.total);
+
               return (
-                <div key={raffle.id}
-                  className="card p-4 opacity-75 hover:opacity-90 transition-opacity cursor-pointer"
-                  onClick={() => toggleExpand(raffle.id)}>
-                  <div className="flex items-start justify-between gap-2 mb-3">
-                    <div>
-                      <h3 className="font-black text-sm">{raffle.title}</h3>
-                      <span className={`text-[10px] font-black uppercase ${
-                        raffle.status === 'completed' ? 'text-green-500' : 'text-red-500'
-                      }`}>{raffle.status}</span>
+                <div key={raffle.id} className="card overflow-hidden opacity-80 hover:opacity-95 transition-opacity">
+                  {/* ── Raffle header ── */}
+                  <div
+                    className="flex items-center justify-between p-4 cursor-pointer select-none hover:bg-white/[0.02] transition-colors"
+                    onClick={() => toggleExpand(raffle.id)}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
+                        raffle.status === 'completed'
+                          ? 'bg-yellow-500/15 border border-yellow-500/25'
+                          : 'bg-red-500/10 border border-red-500/20'
+                      }`}>
+                        {raffle.status === 'completed'
+                          ? <Trophy size={14} className="text-yellow-400" />
+                          : <AlertTriangle size={14} className="text-red-400" />}
+                      </div>
+                      <div>
+                        <h3 className="font-black text-sm">{raffle.title}</h3>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className={`text-[10px] font-black uppercase ${
+                            raffle.status === 'completed' ? 'text-green-500' : 'text-red-500'
+                          }`}>{raffle.status}</span>
+                          {raffle.status === 'completed' && winners.length > 0 && (
+                            <>
+                              <span className="text-gray-700 text-[10px]">·</span>
+                              <span className="text-[10px] text-gray-500">
+                                {winners.length} winner{winners.length !== 1 ? 's' : ''}
+                              </span>
+                              <span className="text-gray-700 text-[10px]">·</span>
+                              <span className="text-[10px] text-gray-500">
+                                {rafflePrizes.filter((p) => p.winner_name).length} prize{rafflePrizes.filter((p) => p.winner_name).length !== 1 ? 's' : ''} awarded
+                              </span>
+                            </>
+                          )}
+                          {raffle.completed_at && (
+                            <>
+                              <span className="text-gray-700 text-[10px]">·</span>
+                              <span className="text-[10px] text-gray-600">
+                                {new Date(raffle.completed_at).toLocaleDateString()}
+                              </span>
+                            </>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                    {isAdmin && (
-                      <button onClick={(e) => { e.stopPropagation(); setDeleteConfirm(raffle.id); }}
-                        className="p-1.5 text-gray-700 hover:text-red-400 transition-colors">
-                        <Trash2 size={13} />
-                      </button>
-                    )}
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      {isAdmin && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setDeleteConfirm(raffle.id); }}
+                          className="p-1.5 text-gray-700 hover:text-red-400 transition-colors"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      )}
+                      <div className="text-gray-600">
+                        {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                      </div>
+                    </div>
                   </div>
 
-                  {/* Winners */}
-                  {rafflePrizes.filter((p) => p.winner_name).length > 0 && (
-                    <div className="space-y-1.5 mb-2">
-                      {rafflePrizes.filter((p) => p.winner_name).map((prize) => (
-                        <div key={prize.id}
-                          className="flex items-center gap-2 px-3 py-2 rounded-xl bg-yellow-500/8 border border-yellow-500/20">
-                          <Trophy size={12} className="text-yellow-400 shrink-0" />
-                          <div className="flex-1 min-w-0">
-                            <div className="text-[10px] text-gray-500 truncate">{prize.item_name}</div>
-                            <div className="text-xs font-black text-yellow-400">{prize.winner_name}</div>
-                          </div>
+                  {/* ── Winner profiles (expanded) ── */}
+                  {isExpanded && (
+                    <div className="border-t border-[#1e2d3d] bg-[#060a10] px-4 py-4 animate-fade-in">
+                      {raffle.status === 'cancelled' ? (
+                        <div className="text-center py-6">
+                          <AlertTriangle size={24} className="mx-auto text-red-400/50 mb-2" />
+                          <p className="text-gray-500 text-sm">Raffle was cancelled — all DKP refunded</p>
                         </div>
-                      ))}
-                    </div>
-                  )}
+                      ) : winners.length === 0 ? (
+                        <div className="text-center py-6">
+                          <Trophy size={24} className="mx-auto text-gray-700 mb-2" />
+                          <p className="text-gray-500 text-sm">No winners were drawn</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          <div className="text-xs text-gray-600 uppercase tracking-wider font-bold mb-3">
+                            🏆 Winners
+                          </div>
 
-                  {raffle.completed_at && (
-                    <p className="text-[11px] text-gray-700">
-                      Drawn {new Date(raffle.completed_at).toLocaleDateString()}
-                    </p>
+                          {winners.map((winner, wi) => (
+                            <div
+                              key={winner.name}
+                              className={`rounded-xl border overflow-hidden ${
+                                wi === 0
+                                  ? 'border-yellow-500/30 shadow-[0_0_16px_#f59e0b10]'
+                                  : wi === 1
+                                  ? 'border-gray-400/20'
+                                  : wi === 2
+                                  ? 'border-orange-500/20'
+                                  : 'border-[#1e2d3d]'
+                              }`}
+                            >
+                              {/* Winner header */}
+                              <div className={`flex items-center gap-3 px-4 py-3 ${
+                                wi === 0 ? 'bg-yellow-500/8' : 'bg-black/30'
+                              }`}>
+                                {/* Rank badge */}
+                                <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-black shrink-0 ${
+                                  wi === 0 ? 'bg-yellow-400/20 text-yellow-400' :
+                                  wi === 1 ? 'bg-gray-300/20 text-gray-300' :
+                                  wi === 2 ? 'bg-orange-400/20 text-orange-400' :
+                                  'bg-white/5 text-gray-500'
+                                }`}>
+                                  #{wi + 1}
+                                </div>
+
+                                <div className="flex-1 min-w-0">
+                                  <div className={`font-black text-sm ${
+                                    wi === 0 ? 'text-yellow-400 text-glow-gold' :
+                                    wi === 1 ? 'text-gray-200' :
+                                    wi === 2 ? 'text-orange-400' : 'text-white'
+                                  }`}>
+                                    {winner.name}
+                                    {winner.name === myUsername && (
+                                      <span className="text-[10px] font-normal text-cyan-600 ml-2">(you)</span>
+                                    )}
+                                  </div>
+                                  <div className="text-[10px] text-gray-500 mt-0.5">
+                                    Won {winner.total} prize{winner.total !== 1 ? 's' : ''}
+                                    {winner.items.length < winner.total && (
+                                      <span className="text-gray-600 ml-1">
+                                        ({winner.items.length} item type{winner.items.length !== 1 ? 's' : ''})
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {wi === 0 && (
+                                  <Crown size={16} className="text-yellow-400 shrink-0" />
+                                )}
+                              </div>
+
+                              {/* Items won */}
+                              <div className="px-4 py-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                {winner.items.map((item) => (
+                                  <div
+                                    key={item.item_name}
+                                    className="flex items-center gap-2.5 p-2.5 rounded-xl bg-black/40 border border-[#1e2d3d]"
+                                  >
+                                    {item.image ? (
+                                      <img
+                                        src={item.image}
+                                        alt={item.item_name}
+                                        className="w-9 h-9 rounded-lg object-cover shrink-0 border border-[#1e2d3d]"
+                                      />
+                                    ) : (
+                                      <div className="w-9 h-9 rounded-lg bg-[#1e2d3d] flex items-center justify-center shrink-0">
+                                        <Gift size={16} className="text-gray-600" />
+                                      </div>
+                                    )}
+                                    <div className="min-w-0 flex-1">
+                                      <div className="text-xs font-bold text-gray-200 truncate">
+                                        {item.item_name}
+                                      </div>
+                                      {item.count > 1 && (
+                                        <div className="text-[10px] text-purple-400 font-bold mt-0.5">
+                                          ×{item.count} (won {item.count} of this item)
+                                        </div>
+                                      )}
+                                    </div>
+                                    {item.count > 1 && (
+                                      <div className="w-6 h-6 rounded-full bg-purple-500/20 border border-purple-500/30 flex items-center justify-center shrink-0">
+                                        <span className="text-[10px] font-black text-purple-400">{item.count}</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
               );
