@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { signInWithDiscord, signOut, supabase, subscribeMembersRealtime, expireShopItems } from '@/lib/supabase';
+import { signInWithDiscord, signOut, supabase, expireShopItems } from '@/lib/supabase';
 import { useAuth, useMembers } from '@/hooks/useAuth';
 import { AttendancePage } from '@/pages/AttendancePage';
 import { AuctionsPage } from '@/pages/AuctionsPage';
@@ -40,31 +40,49 @@ function App() {
   const [liveDkp, setLiveDkp] = useState(0);
   const [expiredNotice, setExpiredNotice] = useState(0);
 
-  // Sync DKP
+  // Sync DKP on login
   useEffect(() => {
     if (currentUser?.member) setLiveDkp(currentUser.member.dkp);
   }, [currentUser]);
 
-  // Realtime: own DKP
+  // ── Single unified members realtime channel ──────────────
+  // Handles both own DKP (instant from payload) and full
+  // members list reload (for admin panel + leaderboard).
+  // One channel avoids race conditions between two subscribers.
   useEffect(() => {
     if (!currentUser?.member?.id) return;
-    const channel = supabase
-      .channel('member-dkp-realtime')
-      .on('postgres_changes', {
-        event: 'UPDATE', schema: 'public', table: 'members',
-        filter: `id=eq.${currentUser.member.id}`,
-      }, (payload: any) => {
-        if (payload.new?.dkp !== undefined) setLiveDkp(payload.new.dkp);
-      })
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [currentUser]);
 
-  // Realtime: all members
-  useEffect(() => {
-    if (!currentUser) return;
-    const unsubscribe = subscribeMembersRealtime(() => { loadMembers(); });
-    return () => { unsubscribe(); };
+    const channel = supabase
+      .channel('members-unified-realtime')
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'members' },
+        (payload: any) => {
+          const updated = payload.new;
+          if (!updated) return;
+
+          // Instantly update navbar DKP from payload — no extra query needed
+          if (updated.id === currentUser.member.id && updated.dkp !== undefined) {
+            setLiveDkp(updated.dkp);
+          }
+
+          // Reload full members list so admin panel + leaderboard stay fresh
+          loadMembers();
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'members' },
+        () => loadMembers()
+      )
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'members' },
+        () => loadMembers()
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, [currentUser, loadMembers]);
 
   // Realtime: auction badge
@@ -81,8 +99,15 @@ function App() {
   const refreshDkp = async () => {
     if (!currentUser?.member?.id) return;
     const { data } = await supabase
-      .from('members').select('dkp').eq('id', currentUser.member.id).single();
-    if (data?.dkp !== undefined) setLiveDkp(data.dkp);
+      .from('members')
+      .select('dkp')
+      .eq('id', currentUser.member.id)
+      .single();
+    if (data?.dkp !== undefined) {
+      setLiveDkp(data.dkp);
+      // Also reload members so admin panel reflects the change
+      loadMembers();
+    }
   };
 
   // ── Global expiry checker ──────────────────────────────
