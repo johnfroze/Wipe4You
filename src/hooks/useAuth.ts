@@ -28,6 +28,9 @@ export function useAuth() {
   const [loading, setLoading] =
     useState(true);
 
+  const [authError, setAuthError] =
+    useState<string | null>(null);
+
   const initStarted =
     useRef(false);
 
@@ -42,11 +45,9 @@ export function useAuth() {
 
       if (!allowed) {
         await supabase.auth.signOut();
-
-        alert(
-          'You must join the guild Discord server first.'
+        setAuthError(
+          'You must join the guild Discord server to access this dashboard.'
         );
-
         return;
       }
 
@@ -266,6 +267,7 @@ export function useAuth() {
   return {
     currentUser,
     loading,
+    authError,
     isLeader,
     isElder,
     isAdmin,
