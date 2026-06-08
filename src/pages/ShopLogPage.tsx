@@ -98,7 +98,8 @@ export function ShopLogPage() {
   // Filters
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'distributed'>('all');
-  const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'price-high' | 'price-low'>('newest');
+  const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'price-high' | 'price-low' | 'item-asc' | 'item-desc'>('newest');
+  const [itemFilter, setItemFilter] = useState<string>('all');
 
   // Toast notification
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
@@ -196,11 +197,18 @@ export function ShopLogPage() {
     }
   }, [loadTransactions, showToast]);
 
+  // ─── Distinct item names for filter dropdown ───
+  const itemNames = useMemo(() => {
+    const names = new Set(transactions.map((t) => t.item?.name || 'Unknown'));
+    return Array.from(names).sort();
+  }, [transactions]);
+
   // ─── Filtered & Sorted Transactions ───
   const filteredTransactions = useMemo(() => {
     return transactions
       .filter((t) => {
         if (statusFilter !== 'all' && t.distribution_status !== statusFilter) return false;
+        if (itemFilter !== 'all' && (t.item?.name || 'Unknown') !== itemFilter) return false;
         const searchStr = search.toLowerCase();
         return (
           !search ||
@@ -217,11 +225,15 @@ export function ShopLogPage() {
             return b.total_price - a.total_price;
           case 'price-low':
             return a.total_price - b.total_price;
+          case 'item-asc':
+            return (a.item?.name || '').localeCompare(b.item?.name || '');
+          case 'item-desc':
+            return (b.item?.name || '').localeCompare(a.item?.name || '');
           default:
             return new Date(b.purchase_timestamp).getTime() - new Date(a.purchase_timestamp).getTime();
         }
       });
-  }, [transactions, statusFilter, search, sortBy]);
+  }, [transactions, statusFilter, itemFilter, search, sortBy]);
 
   // ─── Buyer Aggregation ───
   const buyerAggregates: BuyerAggregate[] = useMemo(() => {
@@ -287,7 +299,7 @@ export function ShopLogPage() {
   }, [filteredTransactions, safePage, PAGE_SIZE]);
 
   // Reset page when filters change
-  useEffect(() => { setCurrentPage(1); }, [search, statusFilter, sortBy]);
+  useEffect(() => { setCurrentPage(1); }, [search, statusFilter, sortBy, itemFilter]);
 
   // ─── CSV Export ───
   const exportToCSV = useCallback(() => {
@@ -390,7 +402,7 @@ export function ShopLogPage() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
-            <ScrollText className="text-cyan-400" size={24} />
+            <ScrollText className="text-[#D4AF37]" size={24} />
             Shop Log
           </h1>
           <p className="text-gray-500 text-sm mt-1">
@@ -407,7 +419,7 @@ export function ShopLogPage() {
             onClick={() => setShowBuyerSummary(!showBuyerSummary)}
             className={`px-4 py-2.5 rounded-xl flex items-center gap-2 transition-all text-sm ${
               showBuyerSummary
-                ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
+                ? 'bg-[rgba(212,175,55,0.12)] text-[#D4AF37] border border-[rgba(212,175,55,0.3)]'
                 : 'bg-[#222] hover:bg-[#333] text-gray-300 border border-transparent'
             }`}
           >
@@ -456,7 +468,7 @@ export function ShopLogPage() {
         <div className="card overflow-hidden animate-fade-in">
           <div className="p-4 border-b border-[#222] flex items-center justify-between">
             <h2 className="font-semibold text-sm flex items-center gap-2">
-              <User className="text-cyan-400" size={16} />
+              <User className="text-[#D4AF37]" size={16} />
               Buyer Summary — Total Items per Person
             </h2>
             <span className="text-xs text-gray-500">{buyerAggregates.length} buyers</span>
@@ -488,48 +500,86 @@ export function ShopLogPage() {
         </div>
       )}
 
-      {/* Filters — unchanged */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
+      {/* Filters */}
+      <div className="flex flex-col sm:flex-row gap-3 flex-wrap">
+        {/* Search */}
+        <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search by buyer, item, or Discord ID..."
-            className="w-full pl-10 pr-4 py-2.5 bg-black border border-[#333] rounded-xl text-sm focus:border-cyan-500/50 focus:outline-none transition-colors"
+            className="w-full pl-10 pr-4 py-2.5 bg-black border border-[rgba(212,175,55,0.12)] rounded-xl text-sm focus:border-[rgba(212,175,55,0.45)] focus:outline-none transition-colors"
           />
         </div>
+
+        {/* Item filter */}
+        <div className="relative">
+          <ShoppingBag className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={15} />
+          <select
+            value={itemFilter}
+            onChange={(e) => setItemFilter(e.target.value)}
+            className="pl-10 pr-8 py-2.5 bg-black border border-[rgba(212,175,55,0.12)] rounded-xl text-sm appearance-none cursor-pointer focus:border-[rgba(212,175,55,0.45)] focus:outline-none transition-colors"
+          >
+            <option value="all">All Items</option>
+            {itemNames.map((name) => (
+              <option key={name} value={name}>{name}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Status filter */}
         <div className="relative">
           <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
-            className="pl-10 pr-8 py-2.5 bg-black border border-[#333] rounded-xl text-sm appearance-none cursor-pointer focus:border-cyan-500/50 focus:outline-none transition-colors"
+            className="pl-10 pr-8 py-2.5 bg-black border border-[rgba(212,175,55,0.12)] rounded-xl text-sm appearance-none cursor-pointer focus:border-[rgba(212,175,55,0.45)] focus:outline-none transition-colors"
           >
             <option value="all">All Status</option>
             <option value="pending">Pending</option>
             <option value="distributed">Distributed</option>
           </select>
         </div>
+
+        {/* Sort */}
         <div className="relative">
           <Clock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
-            className="pl-10 pr-8 py-2.5 bg-black border border-[#333] rounded-xl text-sm appearance-none cursor-pointer focus:border-cyan-500/50 focus:outline-none transition-colors"
+            className="pl-10 pr-8 py-2.5 bg-black border border-[rgba(212,175,55,0.12)] rounded-xl text-sm appearance-none cursor-pointer focus:border-[rgba(212,175,55,0.45)] focus:outline-none transition-colors"
           >
-            <option value="newest">Newest First</option>
-            <option value="oldest">Oldest First</option>
-            <option value="price-high">Price: High to Low</option>
-            <option value="price-low">Price: Low to High</option>
+            <optgroup label="By Date">
+              <option value="newest">Newest First</option>
+              <option value="oldest">Oldest First</option>
+            </optgroup>
+            <optgroup label="By Price">
+              <option value="price-high">Price: High to Low</option>
+              <option value="price-low">Price: Low to High</option>
+            </optgroup>
+            <optgroup label="By Item">
+              <option value="item-asc">Item Name: A → Z</option>
+              <option value="item-desc">Item Name: Z → A</option>
+            </optgroup>
           </select>
         </div>
+
+        {/* Clear filters — only shown when filters are active */}
+        {(itemFilter !== 'all' || statusFilter !== 'all' || search) && (
+          <button
+            onClick={() => { setItemFilter('all'); setStatusFilter('all'); setSearch(''); }}
+            className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-[rgba(212,175,55,0.06)] border border-[rgba(212,175,55,0.15)] text-[#D4AF37] text-xs font-bold hover:bg-[rgba(212,175,55,0.12)] transition-all"
+          >
+            <X size={13} /> Clear Filters
+          </button>
+        )}
       </div>
 
       {/* Stats — unchanged */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         <div className="card p-4 text-center">
-          <div className="text-2xl font-bold text-cyan-400">{stats.total}</div>
+          <div className="text-2xl font-bold text-[#D4AF37]">{stats.total}</div>
           <div className="text-xs text-gray-500 mt-1">Total Orders</div>
         </div>
         <div className="card p-4 text-center">
@@ -583,7 +633,7 @@ export function ShopLogPage() {
                   </td>
                   <td className="p-4">
                     <div className="flex items-center gap-2">
-                      <ShoppingBag size={14} className="text-cyan-400" />
+                      <ShoppingBag size={14} className="text-[#D4AF37]" />
                       <span className="text-sm">{t.item?.name || 'Unknown'}</span>
                     </div>
                   </td>
@@ -592,7 +642,7 @@ export function ShopLogPage() {
                       {t.quantity}x
                     </span>
                   </td>
-                  <td className="p-4 text-cyan-400 font-medium text-sm tabular-nums">
+                  <td className="p-4 text-[#D4AF37] font-medium text-sm tabular-nums">
                     {t.total_price} DKP
                   </td>
                   <td className="p-4 text-gray-500 text-xs">
@@ -736,7 +786,7 @@ function BuyerSummaryRow({ buyer, rank }: { buyer: BuyerAggregate; rank: number 
         </td>
         <td className="p-3 text-sm text-gray-400">{buyer.totalOrders}</td>
         <td className="p-3">
-          <span className="text-sm font-bold text-cyan-400">{buyer.totalItems}</span>
+          <span className="text-sm font-bold text-[#D4AF37]">{buyer.totalItems}</span>
         </td>
         <td className="p-3 text-sm text-purple-400 font-medium tabular-nums">{buyer.totalSpent} DKP</td>
         <td className="p-3">
@@ -758,11 +808,11 @@ function BuyerSummaryRow({ buyer, rank }: { buyer: BuyerAggregate; rank: number 
                     className="flex items-center justify-between bg-[#111] rounded-lg px-3 py-2"
                   >
                     <div className="flex items-center gap-2">
-                      <Package size={12} className="text-cyan-400" />
+                      <Package size={12} className="text-[#D4AF37]" />
                       <span className="text-xs text-gray-300">{item.itemName}</span>
                     </div>
                     <div className="flex items-center gap-3">
-                      <span className="text-xs text-cyan-400 font-medium">{item.quantity}x</span>
+                      <span className="text-xs text-[#D4AF37] font-medium">{item.quantity}x</span>
                       <span className="text-xs text-gray-500">{item.totalCost} DKP</span>
                     </div>
                   </div>
