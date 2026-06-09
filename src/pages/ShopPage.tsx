@@ -40,7 +40,7 @@ function Toast({
 // ─── Confirm Modal ───
 function ConfirmModal({
   title, message, confirmLabel,
-  confirmClass = 'bg-cyan-600/20 text-cyan-400 border border-cyan-500/20 hover:bg-cyan-600/30',
+  confirmClass = 'bg-[rgba(212,175,55,0.12)] text-[#D4AF37] border border-[rgba(212,175,55,0.2)] hover:bg-[rgba(212,175,55,0.18)]',
   onConfirm, onCancel, loading = false,
 }: {
   title: string; message: string; confirmLabel: string;
@@ -107,7 +107,7 @@ function EditItemModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
       <div className="bg-[#111] border border-[#2a2a2a] rounded-2xl p-6 w-full max-w-md shadow-2xl space-y-4">
         <h3 className="text-base font-semibold flex items-center gap-2">
-          <Pencil size={16} className="text-cyan-400" /> Edit Item
+          <Pencil size={16} className="text-[#D4AF37]" /> Edit Item
         </h3>
 
         {/* Restock banner — shown when item is in raffle state */}
@@ -127,31 +127,31 @@ function EditItemModal({
           <div>
             <label className="text-xs text-gray-500 mb-1 block">Item Name</label>
             <input value={name} onChange={(e) => setName(e.target.value)}
-              className="w-full bg-black border border-[#333] rounded-xl p-3 text-sm focus:border-cyan-500/50 focus:outline-none" />
+              className="w-full bg-black border border-[#333] rounded-xl p-3 text-sm focus:border-[rgba(212,175,55,0.5)] focus:outline-none" />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs text-gray-500 mb-1 block">Price (DKP)</label>
               <input value={price} onChange={(e) => setPrice(e.target.value)} type="number"
-                className="w-full bg-black border border-[#333] rounded-xl p-3 text-sm focus:border-cyan-500/50 focus:outline-none" />
+                className="w-full bg-black border border-[#333] rounded-xl p-3 text-sm focus:border-[rgba(212,175,55,0.5)] focus:outline-none" />
             </div>
             <div>
               <label className="text-xs text-gray-500 mb-1 block">Current Stock</label>
               <input value={stock} onChange={(e) => setStock(e.target.value)} type="number"
-                className="w-full bg-black border border-[#333] rounded-xl p-3 text-sm focus:border-cyan-500/50 focus:outline-none" />
+                className="w-full bg-black border border-[#333] rounded-xl p-3 text-sm focus:border-[rgba(212,175,55,0.5)] focus:outline-none" />
             </div>
           </div>
           <div>
             <label className="text-xs text-gray-500 mb-1 block">Total Stock</label>
             <input value={totalStock} onChange={(e) => setTotalStock(e.target.value)} type="number"
-              className="w-full bg-black border border-[#333] rounded-xl p-3 text-sm focus:border-cyan-500/50 focus:outline-none" />
+              className="w-full bg-black border border-[#333] rounded-xl p-3 text-sm focus:border-[rgba(212,175,55,0.5)] focus:outline-none" />
           </div>
           <div>
             <label className="text-xs text-gray-500 mb-1 block">Description (optional)</label>
             <textarea value={description} onChange={(e) => setDescription(e.target.value)}
               placeholder="Short description shown on the item card..."
               rows={2}
-              className="w-full bg-black border border-[#333] rounded-xl p-3 text-sm focus:border-cyan-500/50 focus:outline-none resize-none" />
+              className="w-full bg-black border border-[#333] rounded-xl p-3 text-sm focus:border-[rgba(212,175,55,0.5)] focus:outline-none resize-none" />
           </div>
           <div>
             <label className="text-xs text-gray-500 mb-1 block">Expiry Date (optional)</label>
@@ -161,7 +161,7 @@ function EditItemModal({
                 type="datetime-local"
                 value={expiresAt}
                 onChange={(e) => setExpiresAt(e.target.value)}
-                className="w-full bg-black border border-[#333] rounded-xl pl-9 pr-3 py-3 text-sm focus:border-cyan-500/50 focus:outline-none"
+                className="w-full bg-black border border-[#333] rounded-xl pl-9 pr-3 py-3 text-sm focus:border-[rgba(212,175,55,0.5)] focus:outline-none"
               />
             </div>
             {expiresAt && (
@@ -174,7 +174,7 @@ function EditItemModal({
           <div>
             <label className="text-xs text-gray-500 mb-1 block">Image URL (optional)</label>
             <input value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://..."
-              className="w-full bg-black border border-[#333] rounded-xl p-3 text-sm focus:border-cyan-500/50 focus:outline-none" />
+              className="w-full bg-black border border-[#333] rounded-xl p-3 text-sm focus:border-[rgba(212,175,55,0.5)] focus:outline-none" />
           </div>
         </div>
 
@@ -184,7 +184,7 @@ function EditItemModal({
             Cancel
           </button>
           <button onClick={handleSave} disabled={saving}
-            className="px-4 py-2 rounded-xl text-sm bg-cyan-600/20 text-cyan-400 border border-cyan-500/20 hover:bg-cyan-600/30 flex items-center gap-2">
+            className="px-4 py-2 rounded-xl text-sm bg-[rgba(212,175,55,0.12)] text-[#D4AF37] border border-[rgba(212,175,55,0.2)] hover:bg-[rgba(212,175,55,0.18)] flex items-center gap-2">
             {saving && <Loader2 size={14} className="animate-spin" />}
             Save Changes
           </button>
@@ -480,7 +480,7 @@ export function ShopPage({ currentUser, onDkpChange }: Props) {
           title={`Buy ${confirmBuy.name}?`}
           message={`This will cost ${confirmBuy.price} DKP. You currently have ${localDkp} DKP.`}
           confirmLabel="Confirm Purchase"
-          confirmClass="bg-cyan-600/20 text-cyan-400 border border-cyan-500/20 hover:bg-cyan-600/30"
+          confirmClass="bg-[rgba(212,175,55,0.12)] text-[#D4AF37] border border-[rgba(212,175,55,0.2)] hover:bg-[rgba(212,175,55,0.18)]"
           onConfirm={() => executeBuy(confirmBuy)}
           onCancel={() => setConfirmBuy(null)}
         />
@@ -512,12 +512,12 @@ export function ShopPage({ currentUser, onDkpChange }: Props) {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
-            <ShoppingBag className="text-cyan-400" size={24} />
+            <ShoppingBag className="text-[#D4AF37]" size={24} />
             DKP Shop
           </h1>
           <p className="text-gray-500 text-sm mt-1">
             Your balance:{' '}
-            <span className="text-cyan-400 font-bold">{localDkp} DKP</span>
+            <span className="text-[#D4AF37] font-bold">{localDkp} DKP</span>
           </p>
         </div>
 
@@ -550,13 +550,13 @@ export function ShopPage({ currentUser, onDkpChange }: Props) {
           <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-3">
             <input value={itemName} onChange={(e) => setItemName(e.target.value)}
               placeholder="Item name"
-              className="bg-black border border-[#333] rounded-xl p-3 text-sm focus:border-cyan-500/50 focus:outline-none" />
+              className="bg-black border border-[#333] rounded-xl p-3 text-sm focus:border-[rgba(212,175,55,0.5)] focus:outline-none" />
             <input value={itemPrice} onChange={(e) => setItemPrice(e.target.value)}
               type="number" placeholder="Price (DKP)"
-              className="bg-black border border-[#333] rounded-xl p-3 text-sm focus:border-cyan-500/50 focus:outline-none" />
+              className="bg-black border border-[#333] rounded-xl p-3 text-sm focus:border-[rgba(212,175,55,0.5)] focus:outline-none" />
             <input value={itemStock} onChange={(e) => setItemStock(e.target.value)}
               type="number" placeholder="Stock quantity"
-              className="bg-black border border-[#333] rounded-xl p-3 text-sm focus:border-cyan-500/50 focus:outline-none" />
+              className="bg-black border border-[#333] rounded-xl p-3 text-sm focus:border-[rgba(212,175,55,0.5)] focus:outline-none" />
             <div className="relative">
               <CalendarClock size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-600" />
               <input
@@ -564,7 +564,7 @@ export function ShopPage({ currentUser, onDkpChange }: Props) {
                 value={itemExpiresAt}
                 onChange={(e) => setItemExpiresAt(e.target.value)}
                 placeholder="Expiry (optional)"
-                className="w-full bg-black border border-[#333] rounded-xl pl-9 pr-3 py-3 text-sm focus:border-cyan-500/50 focus:outline-none text-gray-400"
+                className="w-full bg-black border border-[#333] rounded-xl pl-9 pr-3 py-3 text-sm focus:border-[rgba(212,175,55,0.5)] focus:outline-none text-gray-400"
               />
             </div>
             <input type="file" accept="image/*"
@@ -587,14 +587,14 @@ export function ShopPage({ currentUser, onDkpChange }: Props) {
           <input
             type="text" placeholder="Search items..."
             value={search} onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 bg-black border border-[#333] rounded-xl text-sm focus:border-cyan-500/50 focus:outline-none"
+            className="w-full pl-10 pr-4 py-2.5 bg-black border border-[#333] rounded-xl text-sm focus:border-[rgba(212,175,55,0.5)] focus:outline-none"
           />
         </div>
         <label className="flex items-center gap-2 text-sm text-gray-400 bg-black border border-[#333] rounded-xl px-4 cursor-pointer">
           <Filter size={14} className="text-gray-500" />
           <input type="checkbox" checked={showInStockOnly}
             onChange={(e) => setShowInStockOnly(e.target.checked)}
-            className="accent-cyan-400" />
+            className="accent-[#D4AF37]" />
           In stock only
         </label>
       </div>
@@ -688,7 +688,7 @@ export function ShopPage({ currentUser, onDkpChange }: Props) {
                     {item.description && (
                       <p className="item-desc mt-0.5">{item.description}</p>
                     )}
-                    <div className="text-cyan-400 font-bold text-xl mt-1">{item.price} DKP</div>
+                    <div className="text-[#D4AF37] font-bold text-xl mt-1">{item.price} DKP</div>
                   </div>
 
                   {/* Stock bar */}

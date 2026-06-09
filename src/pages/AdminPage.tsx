@@ -215,8 +215,8 @@ export function AdminPage({ members, onMembersChange, currentUser }: Props) {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl font-black flex items-center gap-2.5 tracking-tight">
-            <div className="w-8 h-8 rounded-lg bg-cyan-400/10 border border-cyan-400/20 flex items-center justify-center">
-              <Shield size={16} className="text-cyan-400" />
+            <div className="w-8 h-8 rounded-lg bg-[rgba(212,175,55,0.08)] border border-[rgba(212,175,55,0.2)] flex items-center justify-center">
+              <Shield size={16} className="text-[#D4AF37]" />
             </div>
             Admin Panel
           </h1>
@@ -229,7 +229,7 @@ export function AdminPage({ members, onMembersChange, currentUser }: Props) {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search members..."
-            className="w-full pl-9 pr-4 py-2.5 bg-black/60 border border-[#1e2d3d] rounded-xl text-sm focus:border-cyan-500/50 focus:outline-none"
+            className="w-full pl-9 pr-4 py-2.5 bg-black/60 border border-[#1e2d3d] rounded-xl text-sm focus:border-[rgba(212,175,55,0.5)] focus:outline-none"
           />
         </div>
       </div>
@@ -237,7 +237,7 @@ export function AdminPage({ members, onMembersChange, currentUser }: Props) {
       {/* ── Raffle Settings ── */}
       <div className="card p-5">
         <h2 className="font-bold text-sm text-gray-400 uppercase tracking-wider flex items-center gap-2 mb-4">
-          <Settings size={14} className="text-cyan-400" /> Raffle Settings
+          <Settings size={14} className="text-[#D4AF37]" /> Raffle Settings
         </h2>
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
           <div className="flex-1">
@@ -258,7 +258,7 @@ export function AdminPage({ members, onMembersChange, currentUser }: Props) {
                   onChange={(e) => setRaffleTicketInput(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleSaveRafflePrice()}
                   placeholder="DKP per ticket"
-                  className="pl-9 pr-4 py-2.5 bg-black/60 border border-[#1e2d3d] rounded-xl text-sm focus:border-cyan-500/50 focus:outline-none w-44"
+                  className="pl-9 pr-4 py-2.5 bg-black/60 border border-[#1e2d3d] rounded-xl text-sm focus:border-[rgba(212,175,55,0.5)] focus:outline-none w-44"
                 />
               </div>
               <button
@@ -313,7 +313,7 @@ export function AdminPage({ members, onMembersChange, currentUser }: Props) {
                             if (e.key === 'Enter') commitRename(m.id, m.username);
                             if (e.key === 'Escape') setRenamingId(null);
                           }}
-                          className="bg-black border border-cyan-500/40 rounded-lg px-2 py-1 text-sm w-36 focus:outline-none"
+                          className="bg-black border border-[rgba(212,175,55,0.4)] rounded-lg px-2 py-1 text-sm w-36 focus:outline-none"
                           autoFocus
                         />
                         <button onClick={() => commitRename(m.id, m.username)}
@@ -327,7 +327,7 @@ export function AdminPage({ members, onMembersChange, currentUser }: Props) {
                     ) : (
                       <div className="flex items-center gap-1.5">
                         <span className="font-bold text-sm truncate">{m.username}</span>
-                        <button onClick={() => startRename(m)} className="text-gray-700 hover:text-cyan-400 transition-colors shrink-0">
+                        <button onClick={() => startRename(m)} className="text-gray-700 hover:text-[#D4AF37] transition-colors shrink-0">
                           <Edit3 size={11} />
                         </button>
                       </div>
@@ -358,7 +358,7 @@ export function AdminPage({ members, onMembersChange, currentUser }: Props) {
                           onKeyDown={(e) => e.key === 'Enter' && handleAddDkp(m.id, m.dkp)}
                           type="number"
                           placeholder="Amount"
-                          className="w-24 bg-black border border-[#1e2d3d] rounded-lg px-3 py-2 text-sm focus:border-cyan-500/50 focus:outline-none"
+                          className="w-24 bg-black border border-[#1e2d3d] rounded-lg px-3 py-2 text-sm focus:border-[rgba(212,175,55,0.5)] focus:outline-none"
                           autoFocus
                         />
                         <button onClick={() => handleAddDkp(m.id, m.dkp)}
@@ -382,12 +382,12 @@ export function AdminPage({ members, onMembersChange, currentUser }: Props) {
                         value={reasonInputs[m.id] || ''}
                         onChange={(e) => setReasonInputs((p) => ({ ...p, [m.id]: e.target.value }))}
                         placeholder="Reason (e.g. Event reward, Penalty...)"
-                        className="w-full bg-black border border-[#1e2d3d] rounded-lg px-3 py-1.5 text-xs focus:border-cyan-500/50 focus:outline-none text-gray-400"
+                        className="w-full bg-black border border-[#1e2d3d] rounded-lg px-3 py-1.5 text-xs focus:border-[rgba(212,175,55,0.5)] focus:outline-none text-gray-400"
                       />
                     </div>
                   ) : (
                     <>
-                      <div className="text-cyan-400 font-black hud-number tabular-nums text-sm px-3 py-1.5 rounded-xl bg-cyan-400/5 border border-cyan-400/15">
+                      <div className="text-[#D4AF37] font-black hud-number tabular-nums text-sm px-3 py-1.5 rounded-xl bg-[rgba(212,175,55,0.04)] border border-[rgba(212,175,55,0.15)]">
                         {m.dkp.toLocaleString()} DKP
                       </div>
                       <button
@@ -398,7 +398,7 @@ export function AdminPage({ members, onMembersChange, currentUser }: Props) {
                       </button>
                       <button
                         onClick={() => setProfileMember(m)}
-                        className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-cyan-500/8 hover:bg-cyan-500/15 text-cyan-600 hover:text-cyan-400 text-xs font-bold uppercase tracking-wide transition-all border border-cyan-500/10"
+                        className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[rgba(212,175,55,0.06)] hover:bg-[rgba(212,175,55,0.1)] text-[rgba(212,175,55,0.6)] hover:text-[#D4AF37] text-xs font-bold uppercase tracking-wide transition-all border border-cyan-500/10"
                         title="View full profile"
                       >
                         <ExternalLink size={12} />

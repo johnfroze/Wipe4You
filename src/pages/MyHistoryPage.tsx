@@ -52,8 +52,8 @@ export function MyHistoryPage({ buyerId }: Props) {
       {/* Header */}
       <div>
         <h1 className="text-2xl font-black flex items-center gap-2.5 tracking-tight">
-          <div className="w-8 h-8 rounded-lg bg-cyan-400/10 border border-cyan-400/20 flex items-center justify-center">
-            <Package size={16} className="text-cyan-400" />
+          <div className="w-8 h-8 rounded-lg bg-[rgba(212,175,55,0.08)] border border-[rgba(212,175,55,0.2)] flex items-center justify-center">
+            <Package size={16} className="text-[#D4AF37]" />
           </div>
           My Purchases
         </h1>
@@ -63,7 +63,7 @@ export function MyHistoryPage({ buyerId }: Props) {
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { value: transactions.length, label: 'Total Orders', color: 'text-cyan-400' },
+          { value: transactions.length, label: 'Total Orders', color: 'text-[#D4AF37]' },
           { value: pendingCount, label: 'Pending', color: 'text-yellow-400' },
           { value: distributedCount, label: 'Received', color: 'text-green-400' },
           { value: `${totalSpent.toLocaleString()}`, label: 'Total Spent', color: 'text-purple-400', suffix: ' DKP' },
@@ -129,7 +129,7 @@ export function MyHistoryPage({ buyerId }: Props) {
 
               {/* Right */}
               <div className="flex items-center gap-3 sm:flex-col sm:items-end sm:justify-center">
-                <div className="flex items-center gap-1.5 text-cyan-400 font-black text-xl hud-number tabular-nums">
+                <div className="flex items-center gap-1.5 text-[#D4AF37] font-black text-xl hud-number tabular-nums">
                   <Zap size={14} />
                   {t.total_price.toLocaleString()} DKP
                 </div>

@@ -512,7 +512,7 @@ export function AttendancePage({ currentUser, members, onMembersChange }: Props)
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Calendar className="text-cyan-400" size={24} />
+            <Calendar className="text-[#D4AF37]" size={24} />
             Attendance
           </h1>
           <p className="text-gray-500 text-sm mt-1">Track guild events and award DKP</p>
@@ -554,8 +554,8 @@ export function AttendancePage({ currentUser, members, onMembersChange }: Props)
             onClick={() => setShowEventHistory((v) => !v)}
           >
             <div className="flex items-center gap-2.5">
-              <div className="w-7 h-7 rounded-lg bg-cyan-400/10 border border-cyan-400/20 flex items-center justify-center">
-                <History size={14} className="text-cyan-400" />
+              <div className="w-7 h-7 rounded-lg bg-[rgba(212,175,55,0.08)] border border-[rgba(212,175,55,0.2)] flex items-center justify-center">
+                <History size={14} className="text-[#D4AF37]" />
               </div>
               <div>
                 <h2 className="font-black text-base">Event Attendance History</h2>
@@ -573,7 +573,7 @@ export function AttendancePage({ currentUser, members, onMembersChange }: Props)
                     value={eventHistorySearch}
                     onChange={(e) => setEventHistorySearch(e.target.value)}
                     placeholder="Search event or player..."
-                    className="pl-8 pr-3 py-1.5 bg-black/60 border border-[#1e2d3d] rounded-xl text-xs focus:border-cyan-500/50 focus:outline-none w-48"
+                    className="pl-8 pr-3 py-1.5 bg-black/60 border border-[#1e2d3d] rounded-xl text-xs focus:border-[rgba(212,175,55,0.5)] focus:outline-none w-48"
                   />
                   {eventHistorySearch && (
                     <button onClick={() => setEventHistorySearch('')}
@@ -620,8 +620,8 @@ export function AttendancePage({ currentUser, members, onMembersChange }: Props)
                           onClick={() => setExpandedEvent(isOpen ? null : group.eventName)}
                         >
                           <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-xl bg-cyan-500/8 border border-cyan-500/15 flex items-center justify-center shrink-0">
-                              <Calendar size={14} className="text-cyan-400" />
+                            <div className="w-8 h-8 rounded-xl bg-[rgba(212,175,55,0.06)] border border-cyan-500/15 flex items-center justify-center shrink-0">
+                              <Calendar size={14} className="text-[#D4AF37]" />
                             </div>
                             <div>
                               <div className="font-bold text-sm">{group.eventName}</div>
@@ -635,7 +635,7 @@ export function AttendancePage({ currentUser, members, onMembersChange }: Props)
                                   {group.sessions.length} session{group.sessions.length !== 1 ? 's' : ''}
                                 </span>
                                 <span className="text-[11px] text-gray-600">·</span>
-                                <span className="text-[11px] text-cyan-600 font-bold">
+                                <span className="text-[11px] text-[rgba(212,175,55,0.6)] font-bold">
                                   +{group.dkpAwarded} DKP each
                                 </span>
                               </div>
@@ -671,7 +671,7 @@ export function AttendancePage({ currentUser, members, onMembersChange }: Props)
                                       <Users size={10} />
                                       {session.attendees.length} player{session.attendees.length !== 1 ? 's' : ''}
                                     </span>
-                                    <span className="text-[11px] text-cyan-600 font-bold">
+                                    <span className="text-[11px] text-[rgba(212,175,55,0.6)] font-bold">
                                       +{group.dkpAwarded} DKP
                                     </span>
                                   </div>
@@ -766,7 +766,7 @@ export function AttendancePage({ currentUser, members, onMembersChange }: Props)
                 value={memberSearch}
                 onChange={(e) => setMemberSearch(e.target.value)}
                 placeholder="Search members..."
-                className="pl-8 pr-3 py-2 bg-black/60 border border-[#1e2d3d] rounded-xl text-xs focus:border-cyan-500/50 focus:outline-none w-44"
+                className="pl-8 pr-3 py-2 bg-black/60 border border-[#1e2d3d] rounded-xl text-xs focus:border-[rgba(212,175,55,0.5)] focus:outline-none w-44"
               />
               {memberSearch && (
                 <button onClick={() => setMemberSearch('')}
@@ -864,7 +864,7 @@ export function AttendancePage({ currentUser, members, onMembersChange }: Props)
                     </div>
                     <div className="w-full h-1.5 bg-[#1a1a1a] rounded-full overflow-hidden">
                       <div
-                        className="h-full bg-gradient-to-r from-cyan-600 to-cyan-400 rounded-full transition-all duration-500"
+                        className="h-full bg-gradient-to-r from-[#A87820] to-[#D4AF37] rounded-full transition-all duration-500"
                         style={{ width: `${attendancePct}%` }}
                       />
                     </div>
@@ -872,7 +872,7 @@ export function AttendancePage({ currentUser, members, onMembersChange }: Props)
 
                   {/* Right: DKP + chevron */}
                   <div className="flex items-center gap-3 shrink-0">
-                    <div className="text-cyan-400 text-xl font-bold tabular-nums">
+                    <div className="text-[#D4AF37] text-xl font-bold tabular-nums">
                       {m.dkp} DKP
                     </div>
                     <div className="text-gray-600">
@@ -900,14 +900,14 @@ export function AttendancePage({ currentUser, members, onMembersChange }: Props)
                       <div className="space-y-4">
                         {/* Summary line */}
                         <div className="flex items-center gap-2 text-xs text-gray-500">
-                          <CheckCircle2 size={13} className="text-cyan-500" />
+                          <CheckCircle2 size={13} className="text-[#D4AF37]" />
                           <span>
                             {logs.length} event{logs.length !== 1 ? 's' : ''} attended
                             {' · '}
                             {Object.keys(logsByDate).length} session
                             {Object.keys(logsByDate).length !== 1 ? 's' : ''}
                             {' · '}
-                            <span className="text-cyan-600 font-medium">
+                            <span className="text-[rgba(212,175,55,0.6)] font-medium">
                               +{logs.reduce((s, l) => s + l.dkp_awarded, 0)} DKP total
                             </span>
                           </span>
@@ -921,7 +921,7 @@ export function AttendancePage({ currentUser, members, onMembersChange }: Props)
                               <Clock size={12} className="text-gray-600 shrink-0" />
                               <span className="text-xs text-gray-500 shrink-0">{date}</span>
                               <div className="flex-1 h-px bg-[#1a1a1a]" />
-                              <span className="text-xs text-cyan-700 shrink-0">
+                              <span className="text-xs text-[rgba(212,175,55,0.4)] shrink-0">
                                 +{dateLogs.reduce((s, l) => s + l.dkp_awarded, 0)} DKP
                               </span>
                             </div>
@@ -942,7 +942,7 @@ export function AttendancePage({ currentUser, members, onMembersChange }: Props)
                                       {log.event_name}
                                     </span>
                                   </div>
-                                  <span className="text-xs text-cyan-400 font-medium tabular-nums ml-3 shrink-0">
+                                  <span className="text-xs text-[#D4AF37] font-medium tabular-nums ml-3 shrink-0">
                                     +{log.dkp_awarded} DKP
                                   </span>
                                 </div>
@@ -987,9 +987,9 @@ export function AttendancePage({ currentUser, members, onMembersChange }: Props)
 
             {/* DKP preview banner */}
             {selectedDkp > 0 && (
-              <div className="mb-5 px-4 py-3 rounded-xl bg-cyan-500/5 border border-cyan-500/20 flex items-center justify-between">
+              <div className="mb-5 px-4 py-3 rounded-xl bg-[rgba(212,175,55,0.04)] border border-[rgba(212,175,55,0.2)] flex items-center justify-between">
                 <span className="text-sm text-gray-400">Total DKP to award per member</span>
-                <span className="text-cyan-400 font-bold text-lg tabular-nums">
+                <span className="text-[#D4AF37] font-bold text-lg tabular-nums">
                   +{selectedDkp} DKP
                 </span>
               </div>
@@ -1012,13 +1012,13 @@ export function AttendancePage({ currentUser, members, onMembersChange }: Props)
                     <label className="flex items-center gap-3 cursor-pointer flex-1">
                       <input
                         type="checkbox"
-                        className="w-5 h-5 accent-cyan-400"
+                        className="w-5 h-5 accent-[#D4AF37]"
                         checked={checkedEventIds.has(e.id)}
                         onChange={() => toggleEvent(e.id)}
                       />
                       <div>
                         <div className="font-medium">{e.name}</div>
-                        <div className="text-cyan-400 text-sm">+{e.dkp} DKP</div>
+                        <div className="text-[#D4AF37] text-sm">+{e.dkp} DKP</div>
                       </div>
                     </label>
 
@@ -1047,7 +1047,7 @@ export function AttendancePage({ currentUser, members, onMembersChange }: Props)
                   onChange={(e) => setNewEventName(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && addEvent()}
                   placeholder="Event name"
-                  className="flex-1 bg-black border border-[#333] rounded-xl p-3 text-sm focus:border-cyan-500/50 focus:outline-none"
+                  className="flex-1 bg-black border border-[#333] rounded-xl p-3 text-sm focus:border-[rgba(212,175,55,0.5)] focus:outline-none"
                 />
                 <input
                   value={newEventDkp}
@@ -1056,7 +1056,7 @@ export function AttendancePage({ currentUser, members, onMembersChange }: Props)
                   placeholder="DKP"
                   type="number"
                   min="1"
-                  className="w-28 bg-black border border-[#333] rounded-xl p-3 text-sm focus:border-cyan-500/50 focus:outline-none"
+                  className="w-28 bg-black border border-[#333] rounded-xl p-3 text-sm focus:border-[rgba(212,175,55,0.5)] focus:outline-none"
                 />
                 <button
                   onClick={addEvent}
@@ -1078,7 +1078,7 @@ export function AttendancePage({ currentUser, members, onMembersChange }: Props)
                 value={attendanceNames}
                 onChange={(e) => setAttendanceNames(e.target.value)}
                 placeholder={`PlayerOne\nPlayerTwo\nPlayerThree`}
-                className="w-full h-40 bg-black border border-[#333] rounded-2xl p-4 resize-none text-sm focus:border-cyan-500/50 focus:outline-none"
+                className="w-full h-40 bg-black border border-[#333] rounded-2xl p-4 resize-none text-sm focus:border-[rgba(212,175,55,0.5)] focus:outline-none"
               />
               {/* Preview matched count */}
               {attendanceNames.trim() && (

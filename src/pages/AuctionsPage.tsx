@@ -103,7 +103,7 @@ function QuickBidButtons({ minBid, currentInput, onSelect }: {
           onClick={() => onSelect(String(p.value))}
           className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition-all ${
             currentInput === String(p.value)
-              ? 'bg-cyan-500/20 border-cyan-500/40 text-cyan-400'
+              ? 'bg-[rgba(212,175,55,0.12)] border-[rgba(212,175,55,0.4)] text-[#D4AF37]'
               : 'bg-black/40 border-[#1e2d3d] text-gray-500 hover:text-gray-200 hover:border-[#2a3f55]'
           }`}
         >
@@ -432,8 +432,8 @@ export function AuctionsPage({ currentUser, members, onMembersChange }: Props) {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl font-black flex items-center gap-2.5 tracking-tight">
-            <div className="w-8 h-8 rounded-lg bg-cyan-400/10 border border-cyan-400/20 flex items-center justify-center">
-              <Gavel size={16} className="text-cyan-400" />
+            <div className="w-8 h-8 rounded-lg bg-[rgba(212,175,55,0.08)] border border-[rgba(212,175,55,0.2)] flex items-center justify-center">
+              <Gavel size={16} className="text-[#D4AF37]" />
             </div>
             Auctions
             {myOutbidCount > 0 && (
@@ -537,7 +537,7 @@ export function AuctionsPage({ currentUser, members, onMembersChange }: Props) {
                     <div className="flex items-center justify-between p-3.5 rounded-xl bg-black/50 border border-[#1e2d3d]">
                       <div>
                         <div className="text-[10px] text-gray-500 uppercase tracking-wider mb-0.5">Current Bid</div>
-                        <div className={`text-2xl font-black hud-number tabular-nums ${iAmWinning ? 'text-green-400 text-glow-green' : 'text-cyan-400 text-glow-cyan'}`}>
+                        <div className={`text-2xl font-black hud-number tabular-nums ${iAmWinning ? 'text-green-400 text-glow-green' : 'text-[#D4AF37] text-glow-cyan'}`}>
                           {a.current_bid.toLocaleString()} DKP
                         </div>
                       </div>
@@ -570,7 +570,7 @@ export function AuctionsPage({ currentUser, members, onMembersChange }: Props) {
                         onChange={(e) => setBidInputs((prev) => ({ ...prev, [a.id]: e.target.value }))}
                         onKeyDown={(e) => e.key === 'Enter' && placeBid(a.id)}
                         placeholder={`Custom amount (min ${minBid.toLocaleString()})`}
-                        className="flex-1 bg-black/60 border border-[#1e2d3d] rounded-xl px-3 py-2.5 text-sm focus:border-cyan-500/50 focus:outline-none"
+                        className="flex-1 bg-black/60 border border-[#1e2d3d] rounded-xl px-3 py-2.5 text-sm focus:border-[rgba(212,175,55,0.5)] focus:outline-none"
                       />
                       <button
                         onClick={() => placeBid(a.id)}
@@ -615,17 +615,17 @@ export function AuctionsPage({ currentUser, members, onMembersChange }: Props) {
                               <div key={i}
                                 className={`flex items-center justify-between rounded-lg px-3 py-2 text-xs border transition-colors ${
                                   h.user === myUsername
-                                    ? 'bg-cyan-500/5 border-cyan-500/20'
+                                    ? 'bg-[rgba(212,175,55,0.04)] border-[rgba(212,175,55,0.2)]'
                                     : 'bg-black/40 border-[#1e2d3d]'
                                 }`}
                               >
                                 <div className="flex items-center gap-2">
-                                  <TrendingUp size={11} className="text-cyan-400 shrink-0" />
-                                  <span className={h.user === myUsername ? 'text-cyan-300 font-bold' : 'text-gray-300'}>
+                                  <TrendingUp size={11} className="text-[#D4AF37] shrink-0" />
+                                  <span className={h.user === myUsername ? 'text-[#E8D070] font-bold' : 'text-gray-300'}>
                                     {h.user}
-                                    {h.user === myUsername && <span className="text-cyan-600 ml-1">(you)</span>}
+                                    {h.user === myUsername && <span className="text-[rgba(212,175,55,0.6)] ml-1">(you)</span>}
                                   </span>
-                                  <span className="text-cyan-400 font-bold tabular-nums">
+                                  <span className="text-[#D4AF37] font-bold tabular-nums">
                                     {h.bid.toLocaleString()} DKP
                                   </span>
                                 </div>
@@ -715,7 +715,7 @@ export function AuctionsPage({ currentUser, members, onMembersChange }: Props) {
           <div className="bg-[#0d1117] rounded-2xl p-6 w-full max-w-lg border border-[#1e2d3d] animate-fade-in">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-black flex items-center gap-2">
-                <Gavel size={20} className="text-cyan-400" /> Create Auction
+                <Gavel size={20} className="text-[#D4AF37]" /> Create Auction
               </h2>
               <button onClick={() => setShowModal(false)} className="text-gray-600 hover:text-white transition-colors">
                 <X size={20} />
@@ -727,7 +727,7 @@ export function AuctionsPage({ currentUser, members, onMembersChange }: Props) {
                 <label className="text-xs text-gray-500 uppercase tracking-wider mb-1.5 block">Item Name</label>
                 <input value={itemName} onChange={(e) => setItemName(e.target.value)}
                   placeholder="e.g. Dragon Sword +8"
-                  className="w-full bg-black/60 border border-[#1e2d3d] rounded-xl p-3 text-sm focus:border-cyan-500/50 focus:outline-none" />
+                  className="w-full bg-black/60 border border-[#1e2d3d] rounded-xl p-3 text-sm focus:border-[rgba(212,175,55,0.5)] focus:outline-none" />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -735,13 +735,13 @@ export function AuctionsPage({ currentUser, members, onMembersChange }: Props) {
                   <label className="text-xs text-gray-500 uppercase tracking-wider mb-1.5 block">Starting Bid</label>
                   <input value={startBid} onChange={(e) => setStartBid(e.target.value)}
                     type="number" placeholder="0 DKP"
-                    className="w-full bg-black/60 border border-[#1e2d3d] rounded-xl p-3 text-sm focus:border-cyan-500/50 focus:outline-none" />
+                    className="w-full bg-black/60 border border-[#1e2d3d] rounded-xl p-3 text-sm focus:border-[rgba(212,175,55,0.5)] focus:outline-none" />
                 </div>
                 <div>
                   <label className="text-xs text-gray-500 uppercase tracking-wider mb-1.5 block">Min Increment</label>
                   <input value={increment} onChange={(e) => setIncrement(e.target.value)}
                     type="number" placeholder="1 DKP"
-                    className="w-full bg-black/60 border border-[#1e2d3d] rounded-xl p-3 text-sm focus:border-cyan-500/50 focus:outline-none" />
+                    className="w-full bg-black/60 border border-[#1e2d3d] rounded-xl p-3 text-sm focus:border-[rgba(212,175,55,0.5)] focus:outline-none" />
                 </div>
               </div>
 
@@ -752,7 +752,7 @@ export function AuctionsPage({ currentUser, members, onMembersChange }: Props) {
                     <button key={m} onClick={() => setMinutes(String(m))}
                       className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${
                         minutes === String(m)
-                          ? 'bg-cyan-500/20 border-cyan-500/40 text-cyan-400'
+                          ? 'bg-[rgba(212,175,55,0.12)] border-[rgba(212,175,55,0.4)] text-[#D4AF37]'
                           : 'bg-black/40 border-[#1e2d3d] text-gray-500 hover:text-gray-300'
                       }`}>
                       {m >= 60 ? `${m / 60}h` : `${m}m`}
@@ -761,7 +761,7 @@ export function AuctionsPage({ currentUser, members, onMembersChange }: Props) {
                 </div>
                 <input value={minutes} onChange={(e) => setMinutes(e.target.value)}
                   type="number" placeholder="Custom minutes"
-                  className="w-full bg-black/60 border border-[#1e2d3d] rounded-xl p-3 text-sm focus:border-cyan-500/50 focus:outline-none" />
+                  className="w-full bg-black/60 border border-[#1e2d3d] rounded-xl p-3 text-sm focus:border-[rgba(212,175,55,0.5)] focus:outline-none" />
               </div>
 
               <div>
@@ -772,12 +772,12 @@ export function AuctionsPage({ currentUser, members, onMembersChange }: Props) {
 
               {/* Preview summary */}
               {itemName && (
-                <div className="p-3 rounded-xl bg-cyan-500/5 border border-cyan-500/15 text-xs text-gray-400 space-y-1">
+                <div className="p-3 rounded-xl bg-[rgba(212,175,55,0.04)] border border-cyan-500/15 text-xs text-gray-400 space-y-1">
                   <div className="flex justify-between">
                     <span>Item</span><span className="text-white font-bold">{itemName}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span>Starting bid</span><span className="text-cyan-400 font-bold">{parseInt(startBid) || 0} DKP</span>
+                    <span>Starting bid</span><span className="text-[#D4AF37] font-bold">{parseInt(startBid) || 0} DKP</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Duration</span><span className="text-white font-bold">

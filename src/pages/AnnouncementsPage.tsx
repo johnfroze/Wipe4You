@@ -130,8 +130,8 @@ export function AnnouncementsPage({ currentUser }: Props) {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl font-black flex items-center gap-2.5 tracking-tight">
-            <div className="w-8 h-8 rounded-lg bg-cyan-400/10 border border-cyan-400/20 flex items-center justify-center">
-              <Megaphone size={16} className="text-cyan-400" />
+            <div className="w-8 h-8 rounded-lg bg-[rgba(212,175,55,0.08)] border border-[rgba(212,175,55,0.2)] flex items-center justify-center">
+              <Megaphone size={16} className="text-[#D4AF37]" />
             </div>
             Announcements
           </h1>
@@ -155,7 +155,7 @@ export function AnnouncementsPage({ currentUser }: Props) {
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Announcement title..."
-            className="w-full bg-black/60 border border-[#1e2d3d] rounded-xl p-3 text-sm focus:border-cyan-500/50 focus:outline-none font-bold"
+            className="w-full bg-black/60 border border-[#1e2d3d] rounded-xl p-3 text-sm focus:border-[rgba(212,175,55,0.5)] focus:outline-none font-bold"
           />
 
           <textarea
@@ -163,7 +163,7 @@ export function AnnouncementsPage({ currentUser }: Props) {
             onChange={(e) => setBody(e.target.value)}
             placeholder="Write your announcement here..."
             rows={4}
-            className="w-full bg-black/60 border border-[#1e2d3d] rounded-xl p-3 text-sm focus:border-cyan-500/50 focus:outline-none resize-none"
+            className="w-full bg-black/60 border border-[#1e2d3d] rounded-xl p-3 text-sm focus:border-[rgba(212,175,55,0.5)] focus:outline-none resize-none"
           />
 
           <div className="flex items-center justify-between">
@@ -172,9 +172,9 @@ export function AnnouncementsPage({ currentUser }: Props) {
                 type="checkbox"
                 checked={pinned}
                 onChange={(e) => setPinned(e.target.checked)}
-                className="accent-cyan-400 w-4 h-4"
+                className="accent-[#D4AF37] w-4 h-4"
               />
-              <Pin size={13} className={pinned ? 'text-cyan-400' : 'text-gray-600'} />
+              <Pin size={13} className={pinned ? 'text-[#D4AF37]' : 'text-gray-600'} />
               Pin to top
             </label>
 
@@ -212,7 +212,7 @@ export function AnnouncementsPage({ currentUser }: Props) {
               key={a.id}
               className={`card p-5 transition-all ${
                 a.pinned
-                  ? 'border-cyan-500/25 shadow-[0_0_20px_#00d4ff08]'
+                  ? 'border-[rgba(212,175,55,0.25)] shadow-[0_0_20px_#00d4ff08]'
                   : ''
               }`}
             >
@@ -220,7 +220,7 @@ export function AnnouncementsPage({ currentUser }: Props) {
               <div className="flex items-start justify-between gap-3 mb-3">
                 <div className="flex items-start gap-2.5 flex-1 min-w-0">
                   {a.pinned && (
-                    <Pin size={14} className="text-cyan-400 mt-0.5 shrink-0" />
+                    <Pin size={14} className="text-[#D4AF37] mt-0.5 shrink-0" />
                   )}
                   <div className="min-w-0">
                     <h3 className="font-black text-base leading-snug truncate">{a.title}</h3>
@@ -231,7 +231,7 @@ export function AnnouncementsPage({ currentUser }: Props) {
                       {a.pinned && (
                         <>
                           <span>·</span>
-                          <span className="text-cyan-600 font-bold uppercase tracking-wider text-[10px]">Pinned</span>
+                          <span className="text-[rgba(212,175,55,0.6)] font-bold uppercase tracking-wider text-[10px]">Pinned</span>
                         </>
                       )}
                     </div>
@@ -245,8 +245,8 @@ export function AnnouncementsPage({ currentUser }: Props) {
                       onClick={() => togglePin(a)}
                       className={`p-2 rounded-lg transition-all ${
                         a.pinned
-                          ? 'text-cyan-400 bg-cyan-400/10 hover:bg-cyan-400/20'
-                          : 'text-gray-600 hover:text-cyan-400 hover:bg-cyan-400/10'
+                          ? 'text-[#D4AF37] bg-[rgba(212,175,55,0.08)] hover:bg-cyan-400/20'
+                          : 'text-gray-600 hover:text-[#D4AF37] hover:bg-[rgba(212,175,55,0.08)]'
                       }`}
                       title={a.pinned ? 'Unpin' : 'Pin to top'}
                     >

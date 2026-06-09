@@ -82,7 +82,7 @@ export function MemberProfileModal({ member, onClose }: Props) {
             <div className="flex items-center gap-3 mt-1">
               <span className={`text-xs font-bold uppercase tracking-wider ${rc.color}`}>{rc.label}</span>
               <span className="text-gray-700">·</span>
-              <span className="flex items-center gap-1 text-cyan-400 font-black text-sm hud-number">
+              <span className="flex items-center gap-1 text-[#D4AF37] font-black text-sm hud-number">
                 <Zap size={12} />{member.dkp.toLocaleString()} DKP
               </span>
               <span className="text-gray-700">·</span>
@@ -110,7 +110,7 @@ export function MemberProfileModal({ member, onClose }: Props) {
               {t.icon}
               {t.label}
               {t.count !== undefined && t.count > 0 && (
-                <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${tab === t.id ? 'bg-cyan-400/20 text-cyan-400' : 'bg-white/10 text-gray-500'}`}>
+                <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${tab === t.id ? 'bg-cyan-400/20 text-[#D4AF37]' : 'bg-white/10 text-gray-500'}`}>
                   {t.count}
                 </span>
               )}
@@ -133,7 +133,7 @@ export function MemberProfileModal({ member, onClose }: Props) {
                 <div className="space-y-4 animate-fade-in">
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     {[
-                      { label: 'Current DKP', value: member.dkp.toLocaleString(), color: 'text-cyan-400' },
+                      { label: 'Current DKP', value: member.dkp.toLocaleString(), color: 'text-[#D4AF37]' },
                       { label: 'Events Attended', value: member.attendance || 0, color: 'text-green-400' },
                       { label: 'Auction Wins', value: data.auctionWins.length, color: 'text-yellow-400' },
                       { label: 'Items Bought', value: data.shopPurchases.length, color: 'text-purple-400' },
@@ -241,7 +241,7 @@ export function MemberProfileModal({ member, onClose }: Props) {
                           <div className="text-[11px] text-gray-600">{new Date(log.recorded_at).toLocaleDateString()}</div>
                         </div>
                       </div>
-                      <span className="text-cyan-400 font-black text-sm tabular-nums">+{log.dkp_awarded} DKP</span>
+                      <span className="text-[#D4AF37] font-black text-sm tabular-nums">+{log.dkp_awarded} DKP</span>
                     </div>
                   ))}
                 </div>
@@ -255,14 +255,14 @@ export function MemberProfileModal({ member, onClose }: Props) {
                   ) : data.shopPurchases.map((t) => (
                     <div key={t.id} className="flex items-center justify-between bg-black/40 border border-[#1e2d3d] rounded-xl px-4 py-3">
                       <div className="flex items-center gap-2.5">
-                        <ShoppingBag size={14} className="text-cyan-400 shrink-0" />
+                        <ShoppingBag size={14} className="text-[#D4AF37] shrink-0" />
                         <div>
                           <div className="text-sm text-gray-200">{t.item?.name || 'Unknown'}</div>
                           <div className="text-[11px] text-gray-600">{new Date(t.purchase_timestamp).toLocaleDateString()}</div>
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="text-cyan-400 font-black text-sm tabular-nums">{t.total_price} DKP</div>
+                        <div className="text-[#D4AF37] font-black text-sm tabular-nums">{t.total_price} DKP</div>
                         <div className={`text-[10px] font-bold ${t.distribution_status === 'distributed' ? 'text-green-500' : 'text-yellow-500'}`}>
                           {t.distribution_status}
                         </div>

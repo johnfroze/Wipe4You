@@ -149,8 +149,8 @@ export function DkpLogPage({ currentUser }: Props) {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl font-black flex items-center gap-2.5 tracking-tight">
-            <div className="w-8 h-8 rounded-lg bg-cyan-400/10 border border-cyan-400/20 flex items-center justify-center">
-              <ClipboardList size={16} className="text-cyan-400" />
+            <div className="w-8 h-8 rounded-lg bg-[rgba(212,175,55,0.08)] border border-[rgba(212,175,55,0.2)] flex items-center justify-center">
+              <ClipboardList size={16} className="text-[#D4AF37]" />
             </div>
             DKP Log
           </h1>
@@ -173,7 +173,7 @@ export function DkpLogPage({ currentUser }: Props) {
       {/* Stats */}
       <div className="grid grid-cols-3 gap-3">
         <div className="card-hud rounded-xl p-4 text-center corner-accent">
-          <div className="text-2xl font-black hud-number text-cyan-400">{stats.entries}</div>
+          <div className="text-2xl font-black hud-number text-[#D4AF37]">{stats.entries}</div>
           <div className="text-xs text-gray-600 mt-1 uppercase tracking-wider">Total Entries</div>
         </div>
         <div className="card-hud rounded-xl p-4 text-center corner-accent">
@@ -192,12 +192,12 @@ export function DkpLogPage({ currentUser }: Props) {
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-600" />
           <input value={search} onChange={(e) => setSearch(e.target.value)}
             placeholder="Search member, reason, or admin..."
-            className="w-full pl-9 pr-4 py-2.5 bg-black/60 border border-[#1e2d3d] rounded-xl text-sm focus:border-cyan-500/50 focus:outline-none" />
+            className="w-full pl-9 pr-4 py-2.5 bg-black/60 border border-[#1e2d3d] rounded-xl text-sm focus:border-[rgba(212,175,55,0.5)] focus:outline-none" />
         </div>
         <div className="relative">
           <Filter size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-600" />
           <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value as typeof typeFilter)}
-            className="pl-9 pr-8 py-2.5 bg-black/60 border border-[#1e2d3d] rounded-xl text-sm appearance-none cursor-pointer focus:border-cyan-500/50 focus:outline-none">
+            className="pl-9 pr-8 py-2.5 bg-black/60 border border-[#1e2d3d] rounded-xl text-sm appearance-none cursor-pointer focus:border-[rgba(212,175,55,0.5)] focus:outline-none">
             <option value="all">All Changes</option>
             <option value="add">Added Only</option>
             <option value="remove">Removed Only</option>
