@@ -25,7 +25,7 @@ type PageId = 'attendance' | 'auctions' | 'shop' | 'shop-log' | 'my-history' | '
 function NavSection({ label }: { label: string }) {
   return (
     <div className="px-3 pt-4 pb-1">
-      <span className="text-[10px] font-black uppercase tracking-widest text-gray-700">{label}</span>
+      <span className="text-[10px] font-black uppercase tracking-widest text-[rgba(212,175,55,0.35)]">{label}</span>
     </div>
   );
 }
@@ -158,9 +158,9 @@ function App() {
     return (
       <div className="min-h-screen loading-screen text-white flex flex-col items-center justify-center gap-6">
         <div className="relative">
-          <div className="w-16 h-16 rounded-full border-2 border-[#1e2d3d] animate-spin border-t-cyan-400" />
+          <div className="w-16 h-16 rounded-full border-2 border-[#1e2d3d] animate-spin border-t-[#D4AF37]" />
           <div className="absolute inset-0 flex items-center justify-center">
-            <Shield size={20} className="text-cyan-400" />
+            <Shield size={20} className="text-[#D4AF37]" />
           </div>
         </div>
         <div className="text-center">
@@ -296,9 +296,9 @@ function App() {
           onClick={() => { setPage('raffle'); setExpiredNotice(0); }}
           className="fixed top-4 left-1/2 -translate-x-1/2 z-50 cursor-pointer animate-slide-in-right"
         >
-          <div className="flex items-center gap-3 px-5 py-3 rounded-2xl bg-purple-500/15 border border-purple-500/30 shadow-2xl shadow-purple-500/10 backdrop-blur-md">
-            <div className="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center shrink-0">
-              <Ticket size={16} className="text-purple-400" />
+          <div className="flex items-center gap-3 px-5 py-3 rounded-2xl bg-[rgba(212,175,55,0.08)] border border-[rgba(212,175,55,0.25)] shadow-2xl shadow-[rgba(212,175,55,0.1)] backdrop-blur-md">
+            <div className="w-8 h-8 rounded-lg bg-[rgba(212,175,55,0.12)] flex items-center justify-center shrink-0">
+              <Ticket size={16} className="text-[#D4AF37]" />
             </div>
             <div>
               <div className="text-sm font-black text-white">
@@ -321,23 +321,23 @@ function App() {
       ══════════════════════════════════════════════ */}
       <aside className={`
         hidden lg:flex flex-col shrink-0 h-screen sticky top-0
-        bg-[#07090f] border-r border-[#1e2d3d]
+        bg-[#030305] border-r border-[rgba(212,175,55,0.08)]
         transition-all duration-200 ease-in-out
         ${sidebarCollapsed ? 'w-[64px]' : 'w-[220px]'}
       `}>
 
         {/* Top accent */}
-        <div className="h-[2px] bg-gradient-to-r from-transparent via-cyan-400/50 to-transparent shrink-0" />
+        <div className="h-[2px] bg-gradient-to-r from-transparent via-[#D4AF37]/50 to-transparent shrink-0" />
 
         {/* Logo */}
         <div className={`flex items-center gap-3 px-4 py-4 shrink-0 ${sidebarCollapsed ? 'justify-center px-2' : ''}`}>
-          <div className="w-8 h-8 rounded-lg bg-cyan-400/10 border border-cyan-400/20 flex items-center justify-center shrink-0">
+          <div className="w-8 h-8 rounded-lg bg-[rgba(212,175,55,0.08)] border border-[rgba(212,175,55,0.2)] flex items-center justify-center shrink-0">
             <Shield size={15} className="text-cyan-400" />
           </div>
           {!sidebarCollapsed && (
             <div className="min-w-0">
               <div className="font-black text-sm tracking-wide leading-none">
-                WIPE<span className="text-cyan-400">4</span>YOU
+                WIPE<span className="text-[#D4AF37]">4</span>YOU
               </div>
               <div className="text-[9px] text-gray-700 tracking-widest uppercase mt-0.5">
                 Guild Dashboard
@@ -390,7 +390,7 @@ function App() {
               </div>
             </div>
           ) : (
-            <div className="flex items-center gap-2.5 p-2 rounded-xl bg-black/30 border border-[#1a2234]">
+            <div className="flex items-center gap-2.5 p-2 rounded-xl bg-[rgba(0,0,0,0.4)] border border-[rgba(212,175,55,0.1)]">
               <img
                 src={currentUser.user.user_metadata.avatar_url}
                 alt=""
@@ -403,7 +403,7 @@ function App() {
                 <div className={`text-[10px] font-bold flex items-center gap-1 mt-0.5 ${rc.color}`}>
                   <RoleIcon size={9} />{rc.label}
                 </div>
-                <div className="flex items-center gap-1 mt-0.5 text-cyan-400 font-black text-[11px] hud-number tabular-nums">
+                <div className="flex items-center gap-1 mt-0.5 text-cyan-400 font-black text-[11px] hud-number tabular-nums text-gold">
                   <Zap size={9} />{liveDkp.toLocaleString()} DKP
                 </div>
               </div>
@@ -432,7 +432,7 @@ function App() {
         {/* Collapse toggle */}
         <button
           onClick={() => setSidebarCollapsed((v) => !v)}
-          className="absolute -right-3 top-20 w-6 h-6 rounded-full bg-[#0d1117] border border-[#1e2d3d] flex items-center justify-center text-gray-500 hover:text-cyan-400 hover:border-cyan-500/40 transition-all shadow-lg z-10"
+          className="absolute -right-3 top-20 w-6 h-6 rounded-full bg-[#050508] border border-[rgba(212,175,55,0.2)] flex items-center justify-center text-gray-500 hover:text-[#D4AF37] hover:border-[rgba(212,175,55,0.4)] transition-all shadow-lg z-10"
         >
           {sidebarCollapsed ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}
         </button>
@@ -444,7 +444,7 @@ function App() {
       <div className="flex-1 flex flex-col min-w-0">
 
         {/* ── Mobile topbar ── */}
-        <header className="lg:hidden sticky top-0 z-40 bg-[#07090f]/95 backdrop-blur-md border-b border-[#1e2d3d] shrink-0">
+        <header className="lg:hidden sticky top-0 z-40 bg-[#030305]/95 backdrop-blur-md border-b border-[rgba(212,175,55,0.1)] shrink-0">
           <div className="h-[2px] bg-gradient-to-r from-transparent via-cyan-400/50 to-transparent" />
           <div className="flex items-center justify-between px-4 py-3">
 
@@ -460,12 +460,12 @@ function App() {
 
             {/* Right: DKP + avatar + logout */}
             <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-cyan-400/8 border border-cyan-400/20">
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-[rgba(212,175,55,0.08)] border border-[rgba(212,175,55,0.2)]">
                 <Zap size={11} className="text-cyan-400" />
-                <span className="text-cyan-400 font-black text-xs hud-number tabular-nums">
+                <span className="text-[#D4AF37] font-black text-xs hud-number tabular-nums">
                   {liveDkp.toLocaleString()}
                 </span>
-                <span className="text-cyan-700 text-[10px] font-bold">DKP</span>
+                <span className="text-[rgba(212,175,55,0.4)] text-[10px] font-bold">DKP</span>
               </div>
               <img
                 src={currentUser.user.user_metadata.avatar_url}
@@ -499,7 +499,7 @@ function App() {
       {/* ══════════════════════════════════════════════
           BOTTOM TAB BAR — mobile only
       ══════════════════════════════════════════════ */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#07090f]/95 backdrop-blur-md border-t border-[#1e2d3d]">
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#030305]/95 backdrop-blur-md border-t border-[rgba(212,175,55,0.1)]">
         {/* Bottom accent */}
         <div className="h-[1px] bg-gradient-to-r from-transparent via-cyan-400/30 to-transparent" />
 
@@ -516,7 +516,7 @@ function App() {
               >
                 {/* Active top glow line */}
                 {active && (
-                  <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-cyan-400 rounded-b-full" />
+                  <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-[#D4AF37] rounded-b-full" />
                 )}
 
                 <span className={`transition-transform ${active ? 'scale-110' : ''}`}>
