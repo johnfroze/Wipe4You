@@ -68,7 +68,7 @@ function WinnersModal({
 }) {
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/90 backdrop-blur-sm p-4">
-      <div className="bg-[#0d1117] border border-yellow-500/30 rounded-3xl p-8 w-full max-w-lg shadow-2xl text-center animate-fade-in">
+      <div className="bg-[#0a0810] border border-yellow-500/30 rounded-3xl p-8 w-full max-w-lg shadow-2xl text-center animate-fade-in">
         <div className="w-20 h-20 rounded-full bg-yellow-400/10 border-2 border-yellow-500/30 flex items-center justify-center mx-auto mb-5 animate-pulse-glow">
           <Trophy size={40} className="text-yellow-400" />
         </div>
@@ -401,7 +401,7 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
 
       {deleteConfirm !== null && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm">
-          <div className="bg-[#0d1117] border border-[#1e2d3d] rounded-2xl p-6 w-full max-w-sm shadow-2xl space-y-4 animate-fade-in">
+          <div className="bg-[#0a0810] border border-[rgba(212,175,55,0.1)] rounded-2xl p-6 w-full max-w-sm shadow-2xl space-y-4 animate-fade-in">
             <h3 className="font-bold">Delete Raffle</h3>
             <p className="text-sm text-gray-400">This permanently deletes the raffle, all prizes, and all entries.</p>
             <div className="flex gap-3 justify-end">
@@ -419,7 +419,7 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
 
       {cancelConfirm !== null && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm">
-          <div className="bg-[#0d1117] border border-[#1e2d3d] rounded-2xl p-6 w-full max-w-sm shadow-2xl space-y-4 animate-fade-in">
+          <div className="bg-[#0a0810] border border-[rgba(212,175,55,0.1)] rounded-2xl p-6 w-full max-w-sm shadow-2xl space-y-4 animate-fade-in">
             <h3 className="font-bold flex items-center gap-2">
               <AlertTriangle size={16} className="text-yellow-400" /> Cancel Raffle
             </h3>
@@ -452,7 +452,7 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
           </h1>
           <p className="text-gray-500 text-sm mt-1">
             {openRaffles.length} open · Your balance:{' '}
-            <span className="text-cyan-400 font-bold hud-number">{liveDkp.toLocaleString()} DKP</span>
+            <span className="text-[#D4AF37] font-bold hud-number">{liveDkp.toLocaleString()} DKP</span>
           </p>
         </div>
 
@@ -500,7 +500,7 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
               {queuedItems.map((item) => (
                 <div key={item.id}
-                  className="flex items-center gap-2 p-2.5 rounded-xl bg-black/40 border border-[#1e2d3d]">
+                  className="flex items-center gap-2 p-2.5 rounded-xl bg-black/40 border border-[rgba(212,175,55,0.1)]">
                   {item.image_url
                     ? <img src={item.image_url} alt={item.name} className="w-8 h-8 rounded-lg object-cover shrink-0" />
                     : <div className="w-8 h-8 rounded-lg bg-[#1e2d3d] flex items-center justify-center shrink-0">
@@ -535,32 +535,32 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
               <label className="text-xs text-gray-500 mb-1 block">Raffle Title *</label>
               <input value={formTitle} onChange={(e) => setFormTitle(e.target.value)}
                 placeholder="e.g. Weekly Gear Raffle"
-                className="w-full bg-black/60 border border-[#1e2d3d] rounded-xl p-3 text-sm focus:border-purple-500/50 focus:outline-none" />
+                className="w-full bg-black/60 border border-[rgba(212,175,55,0.1)] rounded-xl p-3 text-sm focus:border-purple-500/50 focus:outline-none" />
             </div>
             <div className="sm:col-span-2">
               <label className="text-xs text-gray-500 mb-1 block">Description (optional)</label>
               <textarea value={formDesc} onChange={(e) => setFormDesc(e.target.value)}
                 rows={2} placeholder="Tell members what this raffle is about..."
-                className="w-full bg-black/60 border border-[#1e2d3d] rounded-xl p-3 text-sm focus:border-purple-500/50 focus:outline-none resize-none" />
+                className="w-full bg-black/60 border border-[rgba(212,175,55,0.1)] rounded-xl p-3 text-sm focus:border-purple-500/50 focus:outline-none resize-none" />
             </div>
             <div>
               <label className="text-xs text-gray-500 mb-1 block">Ticket Price (DKP) *</label>
               <input value={formTicketPrice} onChange={(e) => setFormTicketPrice(e.target.value)}
                 type="number" min="1" placeholder="10"
-                className="w-full bg-black/60 border border-[#1e2d3d] rounded-xl p-3 text-sm focus:border-purple-500/50 focus:outline-none" />
+                className="w-full bg-black/60 border border-[rgba(212,175,55,0.1)] rounded-xl p-3 text-sm focus:border-purple-500/50 focus:outline-none" />
             </div>
             <div>
               <label className="text-xs text-gray-500 mb-1 block">Max Tickets (optional)</label>
               <input value={formMaxTickets} onChange={(e) => setFormMaxTickets(e.target.value)}
                 type="number" min="1" placeholder="Unlimited"
-                className="w-full bg-black/60 border border-[#1e2d3d] rounded-xl p-3 text-sm focus:border-purple-500/50 focus:outline-none" />
+                className="w-full bg-black/60 border border-[rgba(212,175,55,0.1)] rounded-xl p-3 text-sm focus:border-purple-500/50 focus:outline-none" />
             </div>
             <div className="sm:col-span-2">
               <label className="text-xs text-gray-500 mb-1 block">Draw Date (optional)</label>
               <div className="relative">
                 <CalendarClock size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-600" />
                 <input type="datetime-local" value={formDrawAt} onChange={(e) => setFormDrawAt(e.target.value)}
-                  className="w-full bg-black/60 border border-[#1e2d3d] rounded-xl pl-9 pr-3 py-3 text-sm focus:border-purple-500/50 focus:outline-none" />
+                  className="w-full bg-black/60 border border-[rgba(212,175,55,0.1)] rounded-xl pl-9 pr-3 py-3 text-sm focus:border-purple-500/50 focus:outline-none" />
               </div>
             </div>
 
@@ -577,7 +577,7 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
                 <select
                   value={formRequiredEvent}
                   onChange={(e) => setFormRequiredEvent(e.target.value)}
-                  className="flex-1 bg-black/60 border border-[#1e2d3d] rounded-xl px-3 py-3 text-sm focus:border-purple-500/50 focus:outline-none appearance-none"
+                  className="flex-1 bg-black/60 border border-[rgba(212,175,55,0.1)] rounded-xl px-3 py-3 text-sm focus:border-purple-500/50 focus:outline-none appearance-none"
                 >
                   <option value="">— Open to all members —</option>
                   {eventNames.map((name) => (
@@ -609,22 +609,54 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
               <label className="text-xs text-gray-500 uppercase tracking-wider font-bold">
                 Select Prize Items *
               </label>
-              <span className="text-xs text-purple-400 font-bold">
-                {formSelectedItems.size} item{formSelectedItems.size !== 1 ? 's' : ''}
-                {' · '}
-                {queuedItems
-                  .filter((i) => formSelectedItems.has(i.id))
-                  .reduce((sum, i) => sum + Math.max(1, i.current_stock), 0)
-                } prize slot{
-                  queuedItems
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-purple-400 font-bold">
+                  {formSelectedItems.size} item{formSelectedItems.size !== 1 ? 's' : ''}
+                  {' · '}
+                  {queuedItems
                     .filter((i) => formSelectedItems.has(i.id))
-                    .reduce((sum, i) => sum + Math.max(1, i.current_stock), 0) !== 1 ? 's' : ''
-                } · same number of winners
-              </span>
+                    .reduce((sum, i) => sum + Math.max(1, i.current_stock), 0)
+                  } prize slot{
+                    queuedItems
+                      .filter((i) => formSelectedItems.has(i.id))
+                      .reduce((sum, i) => sum + Math.max(1, i.current_stock), 0) !== 1 ? 's' : ''
+                  } · same number of winners
+                </span>
+                {/* Select All / Deselect All */}
+                {queuedItems.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (formSelectedItems.size === queuedItems.length) {
+                        // All selected → deselect all
+                        setFormSelectedItems(new Set());
+                      } else {
+                        // Some or none → select all
+                        setFormSelectedItems(new Set(queuedItems.map((i) => i.id)));
+                      }
+                    }}
+                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold border transition-all ${
+                      formSelectedItems.size === queuedItems.length
+                        ? 'bg-purple-500/20 border-purple-500/35 text-purple-300 hover:bg-purple-500/10'
+                        : 'bg-[rgba(212,175,55,0.08)] border-[rgba(212,175,55,0.2)] text-[#D4AF37] hover:bg-[rgba(212,175,55,0.15)]'
+                    }`}
+                  >
+                    {formSelectedItems.size === queuedItems.length ? (
+                      <>
+                        <X size={11} /> Deselect All
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 size={11} /> Select All ({queuedItems.length})
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
             </div>
 
             {queuedItems.length === 0 ? (
-              <div className="p-4 rounded-xl bg-black/40 border border-[#1e2d3d] text-center">
+              <div className="p-4 rounded-xl bg-black/40 border border-[rgba(212,175,55,0.1)] text-center">
                 <Info size={16} className="mx-auto text-gray-600 mb-1" />
                 <p className="text-gray-600 text-xs">No expired items in queue. Items appear here when they expire in the shop.</p>
               </div>
@@ -646,7 +678,7 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
                       className={`flex items-center gap-3 p-3 rounded-xl border transition-all text-left ${
                         selected
                           ? 'bg-purple-500/12 border-purple-500/35 shadow-[0_0_12px_#a855f715]'
-                          : 'bg-black/40 border-[#1e2d3d] hover:border-[#2a3f55]'
+                          : 'bg-black/40 border-[rgba(212,175,55,0.1)] hover:border-[#2a3f55]'
                       }`}
                     >
                       {/* Checkbox */}
@@ -790,7 +822,7 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
                         )}
                       </div>
                       {raffle.draw_at && (
-                        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-black/40 border border-[#1e2d3d] text-xs text-gray-400 shrink-0">
+                        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-black/40 border border-[rgba(212,175,55,0.1)] text-xs text-gray-400 shrink-0">
                           <Clock size={11} />
                           {new Date(raffle.draw_at).toLocaleDateString()}
                         </div>
@@ -806,7 +838,7 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                           {rafflePrizes.map((prize) => (
                             <div key={prize.id}
-                              className="flex items-center gap-2 p-2 rounded-xl bg-black/40 border border-[#1e2d3d]">
+                              className="flex items-center gap-2 p-2 rounded-xl bg-black/40 border border-[rgba(212,175,55,0.1)]">
                               {prize.item_image
                                 ? <img src={prize.item_image} alt={prize.item_name} className="w-8 h-8 rounded-lg object-cover shrink-0" />
                                 : <div className="w-8 h-8 rounded-lg bg-[#1e2d3d] flex items-center justify-center shrink-0">
@@ -822,19 +854,19 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
 
                     {/* Stats */}
                     <div className="grid grid-cols-3 gap-2">
-                      <div className="p-3 rounded-xl bg-black/40 border border-[#1e2d3d] text-center">
+                      <div className="p-3 rounded-xl bg-black/40 border border-[rgba(212,175,55,0.1)] text-center">
                         <div className="text-lg font-black text-purple-400 hud-number">{raffle.ticket_price}</div>
                         <div className="text-[10px] text-gray-600 uppercase tracking-wider mt-0.5">DKP/ticket</div>
                       </div>
-                      <div className="p-3 rounded-xl bg-black/40 border border-[#1e2d3d] text-center">
+                      <div className="p-3 rounded-xl bg-black/40 border border-[rgba(212,175,55,0.1)] text-center">
                         <div className="text-lg font-black text-white hud-number">
                           {raffle.tickets_sold}
                           {raffle.max_tickets && <span className="text-gray-600 text-sm font-normal">/{raffle.max_tickets}</span>}
                         </div>
                         <div className="text-[10px] text-gray-600 uppercase tracking-wider mt-0.5">Sold</div>
                       </div>
-                      <div className="p-3 rounded-xl bg-black/40 border border-[#1e2d3d] text-center">
-                        <div className="text-lg font-black text-cyan-400 hud-number">{myTicketCount}</div>
+                      <div className="p-3 rounded-xl bg-black/40 border border-[rgba(212,175,55,0.1)] text-center">
+                        <div className="text-lg font-black text-[#D4AF37] hud-number">{myTicketCount}</div>
                         <div className="text-[10px] text-gray-600 uppercase tracking-wider mt-0.5">Yours</div>
                       </div>
                     </div>
@@ -900,7 +932,7 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
                       </div>
                     ) : !isFull ? (
                       <div className="flex gap-2">
-                        <div className="flex-1 flex items-center gap-2 bg-black/60 border border-[#1e2d3d] rounded-xl px-3 focus-within:border-purple-500/50 transition-colors">
+                        <div className="flex-1 flex items-center gap-2 bg-black/60 border border-[rgba(212,175,55,0.1)] rounded-xl px-3 focus-within:border-purple-500/50 transition-colors">
                           <Ticket size={14} className="text-purple-400 shrink-0" />
                           <input
                             type="number" min="1"
@@ -968,7 +1000,7 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
 
                     {/* Expanded entries */}
                     {isExpanded && (
-                      <div className="border-t border-[#1e2d3d] pt-3 animate-fade-in space-y-1.5">
+                      <div className="border-t border-[rgba(212,175,55,0.1)] pt-3 animate-fade-in space-y-1.5">
                         <div className="text-xs text-gray-600 uppercase tracking-wider font-bold mb-2">
                           Participants ({raffleEntries.length})
                         </div>
@@ -981,7 +1013,7 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
                                 className={`flex items-center justify-between px-3 py-2 rounded-lg border text-xs ${
                                   entry.member_id === myId
                                     ? 'bg-purple-500/5 border-purple-500/20'
-                                    : 'bg-black/30 border-[#1e2d3d]'
+                                    : 'bg-[rgba(0,0,0,0.35)] border-[rgba(212,175,55,0.1)]'
                                 }`}>
                                 <span className={entry.member_id === myId ? 'text-purple-300 font-bold' : 'text-gray-300'}>
                                   {entry.member_name}
@@ -1119,7 +1151,7 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
 
                   {/* ── Winner profiles (expanded) ── */}
                   {isExpanded && (
-                    <div className="border-t border-[#1e2d3d] bg-[#060a10] px-4 py-4 animate-fade-in">
+                    <div className="border-t border-[rgba(212,175,55,0.1)] bg-[#060a10] px-4 py-4 animate-fade-in">
                       {raffle.status === 'cancelled' ? (
                         <div className="text-center py-6">
                           <AlertTriangle size={24} className="mx-auto text-red-400/50 mb-2" />
@@ -1146,12 +1178,12 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
                                   ? 'border-gray-400/20'
                                   : wi === 2
                                   ? 'border-orange-500/20'
-                                  : 'border-[#1e2d3d]'
+                                  : 'border-[rgba(212,175,55,0.1)]'
                               }`}
                             >
                               {/* Winner header */}
                               <div className={`flex items-center gap-3 px-4 py-3 ${
-                                wi === 0 ? 'bg-yellow-500/8' : 'bg-black/30'
+                                wi === 0 ? 'bg-yellow-500/8' : 'bg-[rgba(0,0,0,0.35)]'
                               }`}>
                                 {/* Rank badge */}
                                 <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-black shrink-0 ${
@@ -1171,7 +1203,7 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
                                   }`}>
                                     {winner.name}
                                     {winner.name === (currentUser?.member.username || '') && (
-                                      <span className="text-[10px] font-normal text-cyan-600 ml-2">(you)</span>
+                                      <span className="text-[10px] font-normal text-[rgba(212,175,55,0.6)] ml-2">(you)</span>
                                     )}
                                   </div>
                                   <div className="text-[10px] text-gray-500 mt-0.5">
@@ -1194,13 +1226,13 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
                                 {winner.items.map((item) => (
                                   <div
                                     key={item.item_name}
-                                    className="flex items-center gap-2.5 p-2.5 rounded-xl bg-black/40 border border-[#1e2d3d]"
+                                    className="flex items-center gap-2.5 p-2.5 rounded-xl bg-black/40 border border-[rgba(212,175,55,0.1)]"
                                   >
                                     {item.image ? (
                                       <img
                                         src={item.image}
                                         alt={item.item_name}
-                                        className="w-9 h-9 rounded-lg object-cover shrink-0 border border-[#1e2d3d]"
+                                        className="w-9 h-9 rounded-lg object-cover shrink-0 border border-[rgba(212,175,55,0.1)]"
                                       />
                                     ) : (
                                       <div className="w-9 h-9 rounded-lg bg-[#1e2d3d] flex items-center justify-center shrink-0">
