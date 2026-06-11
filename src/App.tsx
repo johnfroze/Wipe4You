@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { signInWithDiscord, signOut, supabase, expireShopItems } from '@/lib/supabase';
 import { useAuth, useMembers } from '@/hooks/useAuth';
 import { AttendancePage } from '@/pages/AttendancePage';
@@ -40,9 +40,16 @@ function App() {
   const [liveDkp, setLiveDkp] = useState(0);
   const [expiredNotice, setExpiredNotice] = useState(0);
 
-  // Sync DKP on login
+  // Sync DKP only on first login — after that, realtime
+  // channel updates liveDkp directly from payload so it
+  // never gets overwritten by stale currentUser.member.dkp
+  const hasSetInitialDkp = useRef(false);
   useEffect(() => {
-    if (currentUser?.member) setLiveDkp(currentUser.member.dkp);
+    if (currentUser?.member && !hasSetInitialDkp.current) {
+      setLiveDkp(currentUser.member.dkp);
+      hasSetInitialDkp.current = true;
+    }
+    if (!currentUser) hasSetInitialDkp.current = false; // reset on logout
   }, [currentUser]);
 
   // ── Single unified members realtime channel ──────────────
