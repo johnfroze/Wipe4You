@@ -193,9 +193,26 @@ export async function createAuction(
       end_time: auction.end_time || 0,
       ended: false,
       history: [],
+      required_event_name: auction.required_event_name || null,
     });
 
   if (error) throw error;
+}
+
+// Atomic bid placement with attendance gate check
+// Returns: 'ok' | 'not_eligible' | 'bid_too_low' | 'auction_ended'
+export async function placeBid(
+  auctionId: number,
+  memberId: string,
+  bid: number
+): Promise<string> {
+  const { data, error } = await supabase.rpc('place_bid', {
+    p_auction_id: auctionId,
+    p_member_id:  memberId,
+    p_bid:        bid,
+  });
+  if (error) throw error;
+  return data as string;
 }
 
 export async function updateAuction(
@@ -751,6 +768,7 @@ export async function getExpiredQueuedItems() {
     .select('id, name, image_url, price, current_stock, expires_at, raffle_id')
     .eq('transferred_to_raffle', true)
     .is('raffle_id', null)
+    .gt('current_stock', 0)          // only items with unsold stock
     .order('expires_at', { ascending: true });
   if (error) throw error;
   return data || [];
