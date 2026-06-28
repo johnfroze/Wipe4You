@@ -9,7 +9,7 @@ import {
   Gavel, Plus, Trash2, Timer, TrendingUp, X,
   AlertTriangle, CheckCircle2, ChevronUp, ChevronDown,
   Loader2, Zap, Trophy, Users, Clock,
-  TimerReset, Eye, EyeOff, ShieldCheck, Lock, CalendarClock,
+  TimerReset, Eye, EyeOff, ShieldCheck, Lock,
 } from 'lucide-react';
 
 interface Props {
