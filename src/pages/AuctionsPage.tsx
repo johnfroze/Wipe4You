@@ -2,6 +2,8 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   supabase, getAuctions, createAuction,
   updateAuction, deleteAuction, uploadAuctionImage,
+  endAuctionAtomic, placeBid as placeBidRpc, getDistinctEventNames,
+} from '@/lib/supabase';
   endAuctionAtomic,
 } from '@/lib/supabase';
 import type { CurrentUser, Member, Auction } from '@/types';
@@ -9,7 +11,7 @@ import {
   Gavel, Plus, Trash2, Timer, TrendingUp, X,
   AlertTriangle, CheckCircle2, ChevronUp, ChevronDown,
   Loader2, Zap, Trophy, Users, Clock,
-  TimerReset, Eye, EyeOff,
+  TimerReset, Eye, EyeOff, ShieldCheck, Lock, CalendarClock,
 } from 'lucide-react';
 
 interface Props {
@@ -201,6 +203,9 @@ export function AuctionsPage({ currentUser, members, onMembersChange }: Props) {
   const [increment, setIncrement] = useState('1');
   const [minutes, setMinutes] = useState('60');
   const [uploading, setUploading] = useState(false);
+  const [requiredEvent, setRequiredEvent] = useState('');
+  const [eventNames, setEventNames] = useState<string[]>([]);
+  const [myAttendedEvents, setMyAttendedEvents] = useState<Set<string>>(new Set());
 
   const showToast = useCallback((message: string, type: 'success' | 'error' | 'warning' = 'success') => {
     setToast({ message, type });
@@ -215,6 +220,27 @@ export function AuctionsPage({ currentUser, members, onMembersChange }: Props) {
   useEffect(() => {
     let cancelled = false;
     loadAuctions();
+
+    // Load event names for the attendance gate dropdown
+    getDistinctEventNames().then((names) => {
+      if (!cancelled) setEventNames(names);
+    });
+
+    // Load which events the current member attended
+    if (currentUser?.member?.id) {
+      supabase
+        .from('attendance_log')
+        .select('event_name')
+        .eq('member_id', currentUser.member.id)
+        .then(({ data }) => {
+          if (data && !cancelled) {
+            setMyAttendedEvents(
+              new Set(data.map((r: any) => (r.event_name as string).toLowerCase()))
+            );
+          }
+        });
+    }
+
     const channel = supabase
       .channel('auction-realtime-page')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'auctions' }, async () => {
@@ -223,7 +249,7 @@ export function AuctionsPage({ currentUser, members, onMembersChange }: Props) {
       })
       .subscribe();
     return () => { cancelled = true; supabase.removeChannel(channel); };
-  }, [loadAuctions]);
+  }, [loadAuctions, currentUser]);
 
   useEffect(() => {
     const interval = setInterval(() => setNow(Date.now()), 1000);
@@ -281,6 +307,15 @@ export function AuctionsPage({ currentUser, members, onMembersChange }: Props) {
       showToast(`Not enough DKP (you have ${currentUser.member.dkp.toLocaleString()})`, 'error'); return;
     }
 
+    // Client-side eligibility check (server also checks via RPC)
+    if (auction.required_event_name &&
+      !isAdmin &&
+      !myAttendedEvents.has(auction.required_event_name.toLowerCase())
+    ) {
+      showToast(`You must have attended "${auction.required_event_name}" to bid`, 'error');
+      return;
+    }
+
     // Anti-snipe
     let newEndTime = auction.end_time;
     const remaining = auction.end_time - Date.now();
@@ -290,21 +325,40 @@ export function AuctionsPage({ currentUser, members, onMembersChange }: Props) {
       showToast('⚡ Anti-snipe activated — 30 seconds added!', 'warning');
     }
 
-    const newHistory = [
-      { user: currentUser.member.username, bid, timestamp: new Date().toISOString() },
-      ...auction.history,
-    ];
-
     setBidLoading(auctionId);
     try {
-      await updateAuction(auctionId, {
-        current_bid: bid,
-        highest_bidder: currentUser.member.username,
-        history: newHistory,
-        end_time: newEndTime,
-      });
+      // Use atomic RPC which enforces attendance gate server-side
+      const result = await placeBidRpc(auctionId, currentUser.member.id, bid);
+      if (result === 'not_eligible') {
+        showToast(`You must have attended "${auction.required_event_name}" to bid`, 'error');
+        return;
+      }
+      if (result === 'bid_too_low') {
+        showToast(`Bid too low — minimum is ${minimum.toLocaleString()} DKP`, 'error');
+        return;
+      }
+      if (result === 'auction_ended') {
+        showToast('Auction has already ended', 'error');
+        return;
+      }
+      // If RPC not yet deployed, fall back to direct update
+      if (result !== 'ok') {
+        await updateAuction(auctionId, {
+          current_bid: bid,
+          highest_bidder: currentUser.member.username,
+          history: [
+            { user: currentUser.member.username, bid, timestamp: new Date().toISOString() },
+            ...auction.history,
+          ],
+          end_time: newEndTime,
+        });
+      } else if (newEndTime !== auction.end_time) {
+        // Extend time if anti-snipe triggered (RPC doesn't handle this)
+        await updateAuction(auctionId, { end_time: newEndTime });
+      }
       setBidInputs((prev) => ({ ...prev, [auctionId]: '' }));
       if (remaining >= 30000) showToast(`Bid of ${bid.toLocaleString()} DKP placed!`, 'success');
+      await loadAuctions();
     } catch { showToast('Bid failed — try again', 'error'); }
     finally { setBidLoading(null); }
   };
@@ -337,9 +391,9 @@ export function AuctionsPage({ currentUser, members, onMembersChange }: Props) {
       finally { setUploading(false); }
     }
     try {
-      await createAuction({ item, image: image || null, current_bid: bid, increment: inc, end_time: Date.now() + mins * 60000 });
+      await createAuction({ item, image: image || null, current_bid: bid, increment: inc, end_time: Date.now() + mins * 60000, required_event_name: requiredEvent.trim() || null });
       setShowModal(false);
-      setItemName(''); setStartBid(''); setIncrement('1'); setMinutes('60');
+      setItemName(''); setStartBid(''); setIncrement('1'); setMinutes('60'); setRequiredEvent('');
       if (fileInputRef.current) fileInputRef.current.value = '';
       showToast(`Auction "${item}" created`, 'success');
       await loadAuctions();
@@ -480,6 +534,10 @@ export function AuctionsPage({ currentUser, members, onMembersChange }: Props) {
               const iAmWinning = a.highest_bidder === myUsername;
               const iHaveBid = a.history.some((h) => h.user === myUsername);
               const iAmOutbid = iHaveBid && !iAmWinning;
+              // Attendance gate check
+              const isGated = !!a.required_event_name;
+              const isEligible = !isGated || isAdmin ||
+                myAttendedEvents.has((a.required_event_name || '').toLowerCase());
               const wasAntiSnipe = antiSnipeTriggered.has(a.id);
 
               return (
@@ -552,7 +610,33 @@ export function AuctionsPage({ currentUser, members, onMembersChange }: Props) {
                       </div>
                     </div>
 
+                    {/* Attendance gate banner */}
+                    {isGated && (
+                      <div className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-xs ${
+                        isEligible
+                          ? 'bg-green-500/8 border-green-500/20 text-green-300'
+                          : 'bg-red-500/8 border-red-500/20 text-red-300'
+                      }`}>
+                        {isEligible
+                          ? <ShieldCheck size={14} className="text-green-400 shrink-0" />
+                          : <Lock size={14} className="text-red-400 shrink-0" />}
+                        <div>
+                          <span className="font-bold">
+                            {isEligible ? 'You are eligible to bid' : 'Attendance required'}
+                          </span>
+                          <span className="text-gray-500 ml-1">
+                            — must have attended
+                            <span className={`font-bold mx-1 ${isEligible ? 'text-green-400' : 'text-red-400'}`}>
+                              "{a.required_event_name}"
+                            </span>
+                            {!isEligible && '(you have not attended this event)'}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Quick-bid buttons */}
+                    {isEligible && (
                     <div>
                       <div className="text-[10px] text-gray-600 uppercase tracking-wider mb-1.5">Quick Bid</div>
                       <QuickBidButtons
@@ -561,8 +645,14 @@ export function AuctionsPage({ currentUser, members, onMembersChange }: Props) {
                         onSelect={(val) => setBidInputs((prev) => ({ ...prev, [a.id]: val }))}
                       />
                     </div>
+                    )}
 
-                    {/* Custom bid input */}
+                    {/* Custom bid input — locked for ineligible members */}
+                    {!isEligible ? (
+                      <div className="flex items-center justify-center gap-2 py-3 rounded-xl bg-red-500/8 border border-red-500/15 text-red-400 text-sm font-bold">
+                        <Lock size={14} /> You cannot bid on this auction
+                      </div>
+                    ) : (
                     <div className="flex gap-2">
                       <input
                         type="number"
@@ -768,6 +858,41 @@ export function AuctionsPage({ currentUser, members, onMembersChange }: Props) {
                 <label className="text-xs text-gray-500 uppercase tracking-wider mb-1.5 block">Item Image (optional)</label>
                 <input ref={fileInputRef} type="file" accept="image/*"
                   className="w-full bg-black/60 border border-[#1e2d3d] rounded-xl p-3 text-sm text-gray-500" />
+              </div>
+
+              {/* Attendance gate */}
+              <div>
+                <label className="text-xs text-gray-500 uppercase tracking-wider mb-1.5 flex items-center gap-1.5 block">
+                  <ShieldCheck size={12} className="text-[#D4AF37]" />
+                  Attendance Requirement (optional)
+                </label>
+                <p className="text-[11px] text-gray-600 mb-2">
+                  Only members who attended this event can place bids. Leave blank for open bidding.
+                </p>
+                <div className="flex gap-2">
+                  <select
+                    value={requiredEvent}
+                    onChange={(e) => setRequiredEvent(e.target.value)}
+                    className="flex-1 bg-black/60 border border-[#1e2d3d] rounded-xl px-3 py-3 text-sm focus:border-[rgba(212,175,55,0.45)] focus:outline-none appearance-none"
+                  >
+                    <option value="">— Open to all members —</option>
+                    {eventNames.map((name) => (
+                      <option key={name} value={name}>{name}</option>
+                    ))}
+                  </select>
+                  {requiredEvent && (
+                    <button type="button" onClick={() => setRequiredEvent('')}
+                      className="px-3 rounded-xl bg-white/5 hover:bg-white/10 text-gray-500 hover:text-white text-xs transition-colors">
+                      Clear
+                    </button>
+                  )}
+                </div>
+                {requiredEvent && (
+                  <div className="mt-2 flex items-center gap-2 px-3 py-2 rounded-xl bg-[rgba(212,175,55,0.06)] border border-[rgba(212,175,55,0.2)] text-xs text-[#D4AF37]">
+                    <Lock size={11} />
+                    Only attendees of <span className="font-bold text-white mx-1">"{requiredEvent}"</span> can bid
+                  </div>
+                )}
               </div>
 
               {/* Preview summary */}
