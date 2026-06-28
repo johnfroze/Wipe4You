@@ -4,8 +4,6 @@ import {
   updateAuction, deleteAuction, uploadAuctionImage,
   endAuctionAtomic, placeBid as placeBidRpc, getDistinctEventNames,
 } from '@/lib/supabase';
-  endAuctionAtomic,
-} from '@/lib/supabase';
 import type { CurrentUser, Member, Auction } from '@/types';
 import {
   Gavel, Plus, Trash2, Timer, TrendingUp, X,
@@ -673,6 +671,7 @@ export function AuctionsPage({ currentUser, members, onMembersChange }: Props) {
                         Bid
                       </button>
                     </div>
+                    )}
 
                     {/* Admin: extend time */}
                     {isAdmin && (
