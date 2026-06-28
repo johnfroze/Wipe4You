@@ -1,10 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { getShopItems, uploadShopImage, supabase, expireShopItems } from '@/lib/supabase';
 import type { CurrentUser, ShopItem } from '@/types';
 import {
   ShoppingBag, Plus, Package, Search, Filter,
   X, CheckCircle2, AlertTriangle, Pencil, Trash2,
-  Loader2, Lock, ShieldAlert, Timer, CalendarClock, Ticket,
+  Loader2, Lock, ShieldAlert, Timer, CalendarClock, Ticket, Layers,
 } from 'lucide-react';
 
 // Returns current local datetime string for datetime-local inputs
@@ -18,7 +18,7 @@ function getLocalDateTimeString(offsetHours = 0): string {
 
 interface Props {
   currentUser: CurrentUser | null;
-  onDkpChange: () => void;
+  onDkpChange: (newDkp?: number) => void;
 }
 
 // ─── Toast ───
@@ -222,6 +222,8 @@ export function ShopPage({ currentUser, onDkpChange }: Props) {
   const [confirmDelete, setConfirmDelete] = useState<ShopItem | null>(null);
   const [editItem, setEditItem] = useState<ShopItem | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [confirmZeroStock, setConfirmZeroStock] = useState(false);
+  const [zeroStockLoading, setZeroStockLoading] = useState(false);
 
   // Toast
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
@@ -275,8 +277,35 @@ export function ShopPage({ currentUser, onDkpChange }: Props) {
     };
   }, [loadItems, loadShopSettings]);
 
+  // Only set localDkp on mount — optimistic updates handle
+  // subsequent deductions so admin DKP changes don't
+  // overwrite DKP already spent on purchases
+  const hasSetInitialDkp = useRef(false);
   useEffect(() => {
-    setLocalDkp(currentUser?.member.dkp || 0);
+    if (currentUser?.member && !hasSetInitialDkp.current) {
+      setLocalDkp(currentUser.member.dkp);
+      hasSetInitialDkp.current = true;
+    }
+  }, [currentUser]);
+
+  // Realtime: keep localDkp in sync with actual DB value
+  // This ensures refunds, admin adjustments, and attendance
+  // DKP gains are reflected correctly without overwriting
+  // optimistic deductions mid-purchase
+  useEffect(() => {
+    if (!currentUser?.member?.id) return;
+    const channel = supabase
+      .channel('shop-page-dkp')
+      .on('postgres_changes', {
+        event: 'UPDATE', schema: 'public', table: 'members',
+        filter: `id=eq.${currentUser.member.id}`,
+      }, (payload: any) => {
+        if (payload.new?.dkp !== undefined) {
+          setLocalDkp(payload.new.dkp);
+        }
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
   }, [currentUser]);
 
   // ─── BUY ITEM — atomic via Postgres RPC ───
@@ -296,7 +325,8 @@ export function ShopPage({ currentUser, onDkpChange }: Props) {
       switch (result) {
         case 'ok':
           setLocalDkp((prev) => prev - item.price);
-          await Promise.all([onDkpChange(), loadItems()]);
+          const result2 = await Promise.all([onDkpChange(), loadItems()]);
+          void result2;
           showToast(`Purchased ${item.name} for ${item.price} DKP!`, 'success');
           break;
         case 'out_of_stock':
@@ -436,6 +466,39 @@ export function ShopPage({ currentUser, onDkpChange }: Props) {
     }
   };
 
+  // ─── ZERO ALL STOCK ───
+  // Sets current_stock to 0 on every active (non-transferred) item.
+  // Useful for quickly closing out a shop cycle without deleting items.
+  const zeroAllStock = async () => {
+    setZeroStockLoading(true);
+    try {
+      const activeIds = items
+        .filter((i) => !i.transferred_to_raffle)
+        .map((i) => i.id);
+
+      if (activeIds.length === 0) {
+        showToast('No active items to zero out', 'error');
+        setConfirmZeroStock(false);
+        return;
+      }
+
+      const { error } = await supabase
+        .from('shop_items')
+        .update({ current_stock: 0 })
+        .in('id', activeIds);
+      if (error) throw error;
+
+      await loadItems();
+      showToast(`${activeIds.length} item${activeIds.length > 1 ? 's' : ''} set to 0 stock`, 'success');
+    } catch (err) {
+      console.error(err);
+      showToast('Failed to zero out stock', 'error');
+    } finally {
+      setZeroStockLoading(false);
+      setConfirmZeroStock(false);
+    }
+  };
+
   const filteredItems = items.filter((item) => {
     const matchesSearch = item.name.toLowerCase().includes(search.toLowerCase());
     const matchesStock = !showInStockOnly || item.current_stock > 0;
@@ -499,6 +562,18 @@ export function ShopPage({ currentUser, onDkpChange }: Props) {
         />
       )}
 
+      {confirmZeroStock && (
+        <ConfirmModal
+          title="Zero All Stock?"
+          message={`This sets current stock to 0 on all ${items.filter((i) => !i.transferred_to_raffle).length} active shop items. They'll stay visible but become unbuyable until restocked. Items already in raffle are not affected.`}
+          confirmLabel="Zero All Stock"
+          confirmClass="bg-[rgba(212,175,55,0.15)] text-[#D4AF37] border border-[rgba(212,175,55,0.3)] hover:bg-[rgba(212,175,55,0.25)]"
+          onConfirm={zeroAllStock}
+          onCancel={() => setConfirmZeroStock(false)}
+          loading={zeroStockLoading}
+        />
+      )}
+
       {/* Edit Modal */}
       {editItem && (
         <EditItemModal
@@ -522,15 +597,22 @@ export function ShopPage({ currentUser, onDkpChange }: Props) {
         </div>
 
         {isAdmin && (
-          <button onClick={toggleShop}
-            className={`px-4 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 transition-all ${
-              shopEnabled
-                ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30'
-                : 'bg-green-500/20 text-green-400 hover:bg-green-500/30'
-            }`}>
-            {shopEnabled ? <Lock size={16} /> : <ShieldAlert size={16} />}
-            {shopEnabled ? 'Close Shop' : 'Open Shop'}
-          </button>
+          <div className="flex gap-2 flex-wrap">
+            <button onClick={() => setConfirmZeroStock(true)}
+              className="px-4 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 transition-all bg-[rgba(212,175,55,0.08)] text-[#D4AF37] hover:bg-[rgba(212,175,55,0.15)] border border-[rgba(212,175,55,0.2)]">
+              <Layers size={16} />
+              Zero All Stock
+            </button>
+            <button onClick={toggleShop}
+              className={`px-4 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 transition-all ${
+                shopEnabled
+                  ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30'
+                  : 'bg-green-500/20 text-green-400 hover:bg-green-500/30'
+              }`}>
+              {shopEnabled ? <Lock size={16} /> : <ShieldAlert size={16} />}
+              {shopEnabled ? 'Close Shop' : 'Open Shop'}
+            </button>
+          </div>
         )}
       </div>
 
@@ -691,23 +773,30 @@ export function ShopPage({ currentUser, onDkpChange }: Props) {
                     <div className="text-[#D4AF37] font-bold text-xl mt-1">{item.price} DKP</div>
                   </div>
 
-                  {/* Stock bar */}
-                  <div>
-                    <div className="flex justify-between text-xs text-gray-500 mb-1">
-                      <span>{item.current_stock} / {item.total_stock} in stock</span>
-                      <span className={stockPct <= 20 ? 'text-red-400' : stockPct <= 50 ? 'text-yellow-400' : 'text-green-400'}>
-                        {stockPct}%
-                      </span>
+                  {/* Stock bar — hidden when item is transferred to raffle */}
+                  {isTransferred ? (
+                    <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[rgba(168,85,247,0.06)] border border-[rgba(168,85,247,0.15)] text-xs text-purple-300">
+                      <Ticket size={12} className="text-purple-400 shrink-0" />
+                      All stock moved to raffle — none remaining in shop
                     </div>
-                    <div className="w-full h-1.5 bg-[#1a1a1a] rounded-full overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-all ${
-                          stockPct <= 20 ? 'bg-red-500' : stockPct <= 50 ? 'bg-yellow-500' : 'bg-green-500'
-                        }`}
-                        style={{ width: `${stockPct}%` }}
+                  ) : (
+                    <div>
+                      <div className="flex justify-between text-xs text-gray-500 mb-1">
+                        <span>{item.current_stock} / {item.total_stock} in stock</span>
+                        <span className={stockPct <= 20 ? 'text-red-400' : stockPct <= 50 ? 'text-yellow-400' : 'text-green-400'}>
+                          {stockPct}%
+                        </span>
+                      </div>
+                      <div className="w-full h-1.5 bg-[#1a1a1a] rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all ${
+                            stockPct <= 20 ? 'bg-red-500' : stockPct <= 50 ? 'bg-yellow-500' : 'bg-green-500'
+                          }`}
+                          style={{ width: `${stockPct}%` }}
                       />
                     </div>
                   </div>
+                  )}
 
                   {/* Actions */}
                   <div className="flex gap-2">
