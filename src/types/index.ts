@@ -38,6 +38,7 @@ export interface Auction {
   ended: boolean;
   history: BidHistoryEntry[];
   created_at?: string;
+  required_event_name: string | null;
 }
 
 export interface BidHistoryEntry {
