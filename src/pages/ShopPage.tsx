@@ -4,7 +4,7 @@ import type { CurrentUser, ShopItem } from '@/types';
 import {
   ShoppingBag, Plus, Package, Search, Filter,
   X, CheckCircle2, AlertTriangle, Pencil, Trash2,
-  Loader2, Lock, ShieldAlert, Timer, CalendarClock, Ticket, Layers,
+  Loader2, Lock, ShieldAlert, Timer, CalendarClock, Ticket, Layers, Boxes,
 } from 'lucide-react';
 
 // Returns current local datetime string for datetime-local inputs
@@ -224,6 +224,9 @@ export function ShopPage({ currentUser, onDkpChange }: Props) {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [confirmZeroStock, setConfirmZeroStock] = useState(false);
   const [zeroStockLoading, setZeroStockLoading] = useState(false);
+  const [showMassRestock, setShowMassRestock] = useState(false);
+  const [massRestockValues, setMassRestockValues] = useState<Record<number, string>>({});
+  const [massRestockSaving, setMassRestockSaving] = useState(false);
 
   // Toast
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
@@ -499,6 +502,64 @@ export function ShopPage({ currentUser, onDkpChange }: Props) {
     }
   };
 
+  // ─── MASS RESTOCK ───
+  // Opens with current values pre-filled; admin edits any subset
+  // of items, then saves all changed values in one batch.
+  // Restocking an item that was sent to raffle (transferred_to_raffle=true)
+  // automatically returns it to the shop and clears it from the raffle queue.
+  const openMassRestock = () => {
+    const initial: Record<number, string> = {};
+    items.forEach((i) => { initial[i.id] = String(i.current_stock); });
+    setMassRestockValues(initial);
+    setShowMassRestock(true);
+  };
+
+  const saveMassRestock = async () => {
+    setMassRestockSaving(true);
+    try {
+      const updates = items
+        .map((item) => {
+          const raw = massRestockValues[item.id];
+          const newStock = parseInt(raw);
+          if (isNaN(newStock) || newStock === item.current_stock) return null;
+          return { item, newStock };
+        })
+        .filter((u): u is { item: ShopItem; newStock: number } => u !== null);
+
+      if (updates.length === 0) {
+        showToast('No changes to save', 'error');
+        setShowMassRestock(false);
+        return;
+      }
+
+      // Apply each update — restocking a raffle item resets its raffle flags
+      await Promise.all(
+        updates.map(({ item, newStock }) => {
+          const payload: Record<string, unknown> = { current_stock: newStock };
+          if (item.transferred_to_raffle && newStock > 0) {
+            payload.transferred_to_raffle = false;
+            payload.raffle_id = null;
+          }
+          return supabase.from('shop_items').update(payload).eq('id', item.id);
+        })
+      );
+
+      await loadItems();
+      const restoredCount = updates.filter((u) => u.item.transferred_to_raffle && u.newStock > 0).length;
+      showToast(
+        `${updates.length} item${updates.length > 1 ? 's' : ''} restocked` +
+        (restoredCount > 0 ? ` — ${restoredCount} returned from raffle` : ''),
+        'success'
+      );
+      setShowMassRestock(false);
+    } catch (err) {
+      console.error(err);
+      showToast('Failed to save restock changes', 'error');
+    } finally {
+      setMassRestockSaving(false);
+    }
+  };
+
   const filteredItems = items.filter((item) => {
     const matchesSearch = item.name.toLowerCase().includes(search.toLowerCase());
     const matchesStock = !showInStockOnly || item.current_stock > 0;
@@ -574,6 +635,173 @@ export function ShopPage({ currentUser, onDkpChange }: Props) {
         />
       )}
 
+      {/* ─── Mass Restock Modal ─── */}
+      {showMassRestock && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="bg-[#0a0810] border border-[rgba(212,175,55,0.2)] rounded-2xl w-full max-w-3xl max-h-[88vh] flex flex-col shadow-2xl">
+
+            {/* Header */}
+            <div className="flex items-center justify-between p-5 border-b border-[rgba(212,175,55,0.1)] shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-[rgba(212,175,55,0.1)] border border-[rgba(212,175,55,0.2)] flex items-center justify-center">
+                  <Boxes size={17} className="text-[#D4AF37]" />
+                </div>
+                <div>
+                  <h3 className="font-black text-base">Mass Restock</h3>
+                  <p className="text-xs text-gray-500">Edit current stock for any item, then save all changes at once</p>
+                </div>
+              </div>
+              <button onClick={() => setShowMassRestock(false)}
+                className="text-gray-600 hover:text-white transition-colors p-1.5">
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Table */}
+            <div className="flex-1 overflow-y-auto p-5">
+              {items.length === 0 ? (
+                <div className="py-12 text-center">
+                  <Package size={36} className="mx-auto text-gray-700 mb-2" />
+                  <p className="text-gray-500 text-sm">No items in the shop yet</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {/* Column headers */}
+                  <div className="hidden sm:grid grid-cols-[1fr_100px_100px_140px_110px] gap-3 px-3 pb-2 text-[10px] text-gray-600 uppercase tracking-wider font-bold">
+                    <span>Item</span>
+                    <span className="text-center">Current</span>
+                    <span className="text-center">Total</span>
+                    <span>Expiry</span>
+                    <span className="text-center">Status</span>
+                  </div>
+
+                  {items.map((item) => {
+                    const now = Date.now();
+                    const expiresAt = item.expires_at ? new Date(item.expires_at).getTime() : null;
+                    const isExpired = expiresAt !== null && now > expiresAt;
+                    const inRaffle = item.transferred_to_raffle === true;
+                    const currentVal = massRestockValues[item.id] ?? String(item.current_stock);
+                    const hasChanged = parseInt(currentVal) !== item.current_stock && !isNaN(parseInt(currentVal));
+                    const willRestoreFromRaffle = inRaffle && parseInt(currentVal) > 0;
+
+                    return (
+                      <div
+                        key={item.id}
+                        className={`grid grid-cols-2 sm:grid-cols-[1fr_100px_100px_140px_110px] gap-3 items-center px-3 py-2.5 rounded-xl border transition-colors ${
+                          hasChanged
+                            ? 'bg-[rgba(212,175,55,0.06)] border-[rgba(212,175,55,0.3)]'
+                            : 'bg-black/30 border-[rgba(212,175,55,0.08)]'
+                        }`}
+                      >
+                        {/* Item name + image */}
+                        <div className="flex items-center gap-2.5 min-w-0 col-span-2 sm:col-span-1">
+                          {item.image_url
+                            ? <img src={item.image_url} alt={item.name} className="w-8 h-8 rounded-lg object-cover shrink-0" />
+                            : <div className="w-8 h-8 rounded-lg bg-[rgba(212,175,55,0.08)] flex items-center justify-center shrink-0">
+                                <Package size={14} className="text-gray-600" />
+                              </div>
+                          }
+                          <div className="min-w-0">
+                            <div className="text-sm font-bold truncate">{item.name}</div>
+                            <div className="text-[11px] text-gray-600">{item.price} DKP</div>
+                          </div>
+                        </div>
+
+                        {/* Current stock — editable */}
+                        <div className="flex items-center justify-center gap-1">
+                          <span className="text-[10px] text-gray-600 sm:hidden">Current:</span>
+                          <input
+                            type="number"
+                            min="0"
+                            value={currentVal}
+                            onChange={(e) => setMassRestockValues((prev) => ({ ...prev, [item.id]: e.target.value }))}
+                            className={`w-16 text-center bg-black border rounded-lg py-1.5 text-sm font-bold focus:outline-none ${
+                              hasChanged
+                                ? 'border-[rgba(212,175,55,0.5)] text-[#D4AF37]'
+                                : 'border-[rgba(212,175,55,0.15)] text-gray-300'
+                            }`}
+                          />
+                        </div>
+
+                        {/* Total stock — read only */}
+                        <div className="flex items-center justify-center gap-1">
+                          <span className="text-[10px] text-gray-600 sm:hidden">Total:</span>
+                          <span className="text-sm text-gray-500 font-medium tabular-nums">{item.total_stock}</span>
+                        </div>
+
+                        {/* Expiry */}
+                        <div className="flex items-center gap-1.5 col-span-2 sm:col-span-1">
+                          {item.expires_at ? (
+                            <>
+                              <CalendarClock size={11} className={isExpired ? 'text-red-400' : 'text-gray-600'} />
+                              <span className={`text-xs ${isExpired ? 'text-red-400 font-bold' : 'text-gray-500'}`}>
+                                {new Date(item.expires_at).toLocaleDateString()}
+                                {' '}
+                                {new Date(item.expires_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            </>
+                          ) : (
+                            <span className="text-xs text-gray-700">Never expires</span>
+                          )}
+                        </div>
+
+                        {/* Status */}
+                        <div className="flex items-center justify-center">
+                          {inRaffle ? (
+                            willRestoreFromRaffle ? (
+                              <span className="flex items-center gap-1 text-[10px] font-bold text-green-400 bg-green-500/10 border border-green-500/20 px-2 py-1 rounded-full">
+                                <CheckCircle2 size={10} /> Will restore
+                              </span>
+                            ) : (
+                              <span className="flex items-center gap-1 text-[10px] font-bold text-purple-400 bg-purple-500/10 border border-purple-500/20 px-2 py-1 rounded-full">
+                                <Ticket size={10} /> In raffle
+                              </span>
+                            )
+                          ) : isExpired ? (
+                            <span className="text-[10px] font-bold text-red-400 bg-red-500/10 border border-red-500/20 px-2 py-1 rounded-full">
+                              Expired
+                            </span>
+                          ) : item.current_stock <= 0 ? (
+                            <span className="text-[10px] font-bold text-yellow-400 bg-yellow-500/10 border border-yellow-500/20 px-2 py-1 rounded-full">
+                              Out of stock
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-bold text-gray-500 bg-white/5 border border-white/5 px-2 py-1 rounded-full">
+                              Active
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-between p-5 border-t border-[rgba(212,175,55,0.1)] shrink-0">
+              <span className="text-xs text-gray-600">
+                {items.filter((item) => {
+                  const v = massRestockValues[item.id];
+                  return v !== undefined && parseInt(v) !== item.current_stock && !isNaN(parseInt(v));
+                }).length} item(s) changed
+              </span>
+              <div className="flex gap-3">
+                <button onClick={() => setShowMassRestock(false)} disabled={massRestockSaving}
+                  className="px-5 py-2.5 rounded-xl text-sm bg-white/5 hover:bg-white/10 text-gray-300 transition-colors disabled:opacity-50">
+                  Cancel
+                </button>
+                <button onClick={saveMassRestock} disabled={massRestockSaving}
+                  className="btn-primary flex items-center gap-2 disabled:opacity-50">
+                  {massRestockSaving ? <Loader2 size={14} className="animate-spin" /> : <Boxes size={14} />}
+                  Save Changes
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Edit Modal */}
       {editItem && (
         <EditItemModal
@@ -598,6 +826,11 @@ export function ShopPage({ currentUser, onDkpChange }: Props) {
 
         {isAdmin && (
           <div className="flex gap-2 flex-wrap">
+            <button onClick={openMassRestock}
+              className="px-4 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 transition-all bg-[rgba(212,175,55,0.08)] text-[#D4AF37] hover:bg-[rgba(212,175,55,0.15)] border border-[rgba(212,175,55,0.2)]">
+              <Boxes size={16} />
+              Mass Restock
+            </button>
             <button onClick={() => setConfirmZeroStock(true)}
               className="px-4 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 transition-all bg-[rgba(212,175,55,0.08)] text-[#D4AF37] hover:bg-[rgba(212,175,55,0.15)] border border-[rgba(212,175,55,0.2)]">
               <Layers size={16} />
