@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 
 // Returns current local datetime in the format datetime-local inputs expect
 // e.g. "2026-06-05T14:30" — pre-filled as default, user can adjust
@@ -200,8 +200,34 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
     return () => { supabase.removeChannel(channel); };
   }, [loadAll, loadMyAttendance]);
 
+  // Only set liveDkp on mount — optimistic updates handle
+  // subsequent changes so attendance DKP gains don't
+  // overwrite DKP already spent on tickets
+  const hasSetInitialDkp = useRef(false);
   useEffect(() => {
-    if (currentUser?.member) setLiveDkp(currentUser.member.dkp);
+    if (currentUser?.member && !hasSetInitialDkp.current) {
+      setLiveDkp(currentUser.member.dkp);
+      hasSetInitialDkp.current = true;
+    }
+  }, [currentUser]);
+
+  // Realtime: keep liveDkp in sync with actual DB value
+  // so refunds, admin adjustments, and attendance gains
+  // are reflected without overwriting ticket purchase deductions
+  useEffect(() => {
+    if (!currentUser?.member?.id) return;
+    const channel = supabase
+      .channel('raffle-page-dkp')
+      .on('postgres_changes', {
+        event: 'UPDATE', schema: 'public', table: 'members',
+        filter: `id=eq.${currentUser.member.id}`,
+      }, (payload: any) => {
+        if (payload.new?.dkp !== undefined) {
+          setLiveDkp(payload.new.dkp);
+        }
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
   }, [currentUser]);
 
   // ── Force check ──
@@ -283,7 +309,12 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
   };
 
   // ── Buy Tickets ──
-  const handleBuyTickets = async (raffle: Raffle) => {
+  // ── Confirm modal state ──
+  const [confirmBuy, setConfirmBuy] = useState<{ raffle: Raffle; count: number; cost: number } | null>(null);
+  const [confirmBuyLoading, setConfirmBuyLoading] = useState(false);
+
+  // Step 1: validate and open confirmation modal
+  const handleBuyTickets = (raffle: Raffle) => {
     const count = parseInt(ticketInputs[raffle.id] || '1');
     if (isNaN(count) || count < 1) { showToast('Enter a valid ticket count', 'error'); return; }
     const cost = count * raffle.ticket_price;
@@ -291,6 +322,14 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
       showToast(`Not enough DKP — need ${cost.toLocaleString()}, have ${liveDkp.toLocaleString()}`, 'error');
       return;
     }
+    setConfirmBuy({ raffle, count, cost });
+  };
+
+  // Step 2: actually purchase after confirmation
+  const executeBuyTickets = async () => {
+    if (!confirmBuy) return;
+    const { raffle, count, cost } = confirmBuy;
+    setConfirmBuyLoading(true);
     setBuyingId(raffle.id);
     try {
       const result = await enterRaffle(raffle.id, myId, count);
@@ -312,7 +351,11 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
         default:                 showToast('Purchase failed', 'error');
       }
     } catch (err) { console.error(err); showToast('Failed to buy tickets', 'error'); }
-    finally { setBuyingId(null); }
+    finally {
+      setBuyingId(null);
+      setConfirmBuyLoading(false);
+      setConfirmBuy(null);
+    }
   };
 
   // ── Draw Winners ──
@@ -397,6 +440,67 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
 
       {winnersModal && (
         <WinnersModal results={winnersModal} onClose={() => setWinnersModal(null)} />
+      )}
+
+      {confirmBuy && (
+        <div className="fixed inset-0 z-[65] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-[#0a0810] border border-purple-500/25 rounded-2xl p-6 w-full max-w-sm shadow-2xl space-y-5 animate-fade-in">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-purple-500/15 border border-purple-500/25 flex items-center justify-center shrink-0">
+                <Ticket size={18} className="text-purple-400" />
+              </div>
+              <div>
+                <h3 className="font-black text-base">Confirm Ticket Purchase</h3>
+                <p className="text-xs text-gray-500">{confirmBuy.raffle.title}</p>
+              </div>
+            </div>
+
+            <div className="space-y-2 p-4 rounded-xl bg-black/40 border border-[rgba(212,175,55,0.1)]">
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">Tickets</span>
+                <span className="font-bold text-white">{confirmBuy.count}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">Price per ticket</span>
+                <span className="font-bold text-gray-300">{confirmBuy.raffle.ticket_price.toLocaleString()} DKP</span>
+              </div>
+              <div className="h-px bg-[rgba(212,175,55,0.1)] my-1" />
+              <div className="flex justify-between">
+                <span className="text-sm font-bold text-gray-400">Total cost</span>
+                <span className="text-lg font-black text-purple-400">{confirmBuy.cost.toLocaleString()} DKP</span>
+              </div>
+              <div className="flex justify-between text-xs pt-1">
+                <span className="text-gray-600">Balance after purchase</span>
+                <span className="text-gray-500 font-bold">
+                  {(liveDkp - confirmBuy.cost).toLocaleString()} DKP
+                </span>
+              </div>
+            </div>
+
+            <p className="text-[11px] text-gray-600 text-center">
+              This will immediately deduct DKP from your balance. Purchases cannot be refunded unless the raffle is cancelled by an admin.
+            </p>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setConfirmBuy(null)}
+                disabled={confirmBuyLoading}
+                className="flex-1 px-4 py-2.5 rounded-xl text-sm bg-white/5 hover:bg-white/10 text-gray-300 transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={executeBuyTickets}
+                disabled={confirmBuyLoading}
+                style={{ background: 'linear-gradient(135deg, #a855f7, #7c3aed)' }}
+                className="flex-1 px-4 py-2.5 rounded-xl text-sm font-bold text-white disabled:opacity-50 flex items-center justify-center gap-2 hover:opacity-90 transition-opacity"
+              >
+                {confirmBuyLoading ? <Loader2 size={14} className="animate-spin" /> : <Ticket size={14} />}
+                Confirm Purchase
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {deleteConfirm !== null && (
