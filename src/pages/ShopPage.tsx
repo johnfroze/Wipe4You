@@ -585,7 +585,6 @@ export function ShopPage({ currentUser, onDkpChange }: Props) {
       setMassRestockSaving(false);
     }
   };
-  };
 
   // ─── UPLOAD RESTOCK (Excel / CSV) ───
   const handleUploadFile = (file: File) => {
