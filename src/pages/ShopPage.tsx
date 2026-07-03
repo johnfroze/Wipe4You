@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { getShopItems, uploadShopImage, supabase, expireShopItems } from '@/lib/supabase';
+import * as XLSX from 'xlsx';
 import type { CurrentUser, ShopItem } from '@/types';
 import {
   ShoppingBag, Plus, Package, Search, Filter,
@@ -226,7 +227,14 @@ export function ShopPage({ currentUser, onDkpChange }: Props) {
   const [zeroStockLoading, setZeroStockLoading] = useState(false);
   const [showMassRestock, setShowMassRestock] = useState(false);
   const [massRestockValues, setMassRestockValues] = useState<Record<number, string>>({});
+  const [massRestockExpiry, setMassRestockExpiry] = useState<Record<number, string>>({});
   const [massRestockSaving, setMassRestockSaving] = useState(false);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadParsed, setUploadParsed] = useState<{ name: string; qty: number; expiry: string }[]>([]);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploadSaving, setUploadSaving] = useState(false);
+  const [showUploadPanel, setShowUploadPanel] = useState(false);
+  const uploadInputRef = useRef<HTMLInputElement>(null);
 
   // Toast
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
@@ -508,9 +516,16 @@ export function ShopPage({ currentUser, onDkpChange }: Props) {
   // Restocking an item that was sent to raffle (transferred_to_raffle=true)
   // automatically returns it to the shop and clears it from the raffle queue.
   const openMassRestock = () => {
-    const initial: Record<number, string> = {};
-    items.forEach((i) => { initial[i.id] = String(i.current_stock); });
-    setMassRestockValues(initial);
+    const initialStock: Record<number, string> = {};
+    const initialExpiry: Record<number, string> = {};
+    items.forEach((i) => {
+      initialStock[i.id] = String(i.current_stock);
+      initialExpiry[i.id] = i.expires_at
+        ? new Date(i.expires_at).toISOString().slice(0, 16)
+        : '';
+    });
+    setMassRestockValues(initialStock);
+    setMassRestockExpiry(initialExpiry);
     setShowMassRestock(true);
   };
 
@@ -519,12 +534,21 @@ export function ShopPage({ currentUser, onDkpChange }: Props) {
     try {
       const updates = items
         .map((item) => {
-          const raw = massRestockValues[item.id];
-          const newStock = parseInt(raw);
-          if (isNaN(newStock) || newStock === item.current_stock) return null;
-          return { item, newStock };
+          const rawStock = massRestockValues[item.id];
+          const newStock = parseInt(rawStock);
+          const rawExpiry = massRestockExpiry[item.id] || '';
+          const newExpiry = rawExpiry ? new Date(rawExpiry).toISOString() : null;
+          const origExpiry = item.expires_at
+            ? new Date(item.expires_at).toISOString().slice(0, 16)
+            : '';
+
+          const stockChanged = !isNaN(newStock) && newStock !== item.current_stock;
+          const expiryChanged = rawExpiry !== origExpiry;
+
+          if (!stockChanged && !expiryChanged) return null;
+          return { item, newStock: isNaN(newStock) ? item.current_stock : newStock, newExpiry, stockChanged, expiryChanged };
         })
-        .filter((u): u is { item: ShopItem; newStock: number } => u !== null);
+        .filter((u): u is NonNullable<typeof u> => u !== null);
 
       if (updates.length === 0) {
         showToast('No changes to save', 'error');
@@ -532,11 +556,13 @@ export function ShopPage({ currentUser, onDkpChange }: Props) {
         return;
       }
 
-      // Apply each update — restocking a raffle item resets its raffle flags
       await Promise.all(
-        updates.map(({ item, newStock }) => {
-          const payload: Record<string, unknown> = { current_stock: newStock };
-          if (item.transferred_to_raffle && newStock > 0) {
+        updates.map(({ item, newStock, newExpiry, stockChanged, expiryChanged }) => {
+          const payload: Record<string, unknown> = {};
+          if (stockChanged) payload.current_stock = newStock;
+          if (expiryChanged) payload.expires_at = newExpiry;
+          // Restocking a raffle item returns it to shop
+          if (item.transferred_to_raffle && stockChanged && newStock > 0) {
             payload.transferred_to_raffle = false;
             payload.raffle_id = null;
           }
@@ -545,18 +571,141 @@ export function ShopPage({ currentUser, onDkpChange }: Props) {
       );
 
       await loadItems();
-      const restoredCount = updates.filter((u) => u.item.transferred_to_raffle && u.newStock > 0).length;
+      const restoredCount = updates.filter((u) => u.item.transferred_to_raffle && u.stockChanged && u.newStock > 0).length;
       showToast(
-        `${updates.length} item${updates.length > 1 ? 's' : ''} restocked` +
+        `${updates.length} item${updates.length > 1 ? 's' : ''} updated` +
         (restoredCount > 0 ? ` — ${restoredCount} returned from raffle` : ''),
         'success'
       );
       setShowMassRestock(false);
     } catch (err) {
       console.error(err);
-      showToast('Failed to save restock changes', 'error');
+      showToast('Failed to save changes', 'error');
     } finally {
       setMassRestockSaving(false);
+    }
+  };
+  };
+
+  // ─── UPLOAD RESTOCK (Excel / CSV) ───
+  const handleUploadFile = (file: File) => {
+    setUploadFile(file);
+    setUploadError(null);
+    setUploadParsed([]);
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = e.target?.result;
+        const wb = XLSX.read(data, { type: 'binary' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows: any[] = XLSX.utils.sheet_to_json(ws, { defval: '' });
+
+        // Auto-detect columns: looks for any column containing "item" or "name"
+        // and any column containing "qty", "quantity", "stock"
+        if (rows.length === 0) { setUploadError('File is empty'); return; }
+
+        const sampleRow = rows[0];
+        const keys = Object.keys(sampleRow);
+
+        const nameKey = keys.find((k) =>
+          /item|name/i.test(k)
+        ) || keys[0];
+        const qtyKey = keys.find((k) =>
+          /qty|quantity|stock|count/i.test(k)
+        ) || keys[1];
+        const expiryKey = keys.find((k) =>
+          /expir|date|until|end/i.test(k)
+        );
+
+        const parsed = rows
+          .map((row) => ({
+            name: String(row[nameKey] || '').trim(),
+            qty: parseInt(row[qtyKey]) || 0,
+            expiry: expiryKey && row[expiryKey]
+              ? (() => {
+                  // Handle Excel date serial numbers
+                  const v = row[expiryKey];
+                  if (typeof v === 'number') {
+                    const d = XLSX.SSF.parse_date_code(v);
+                    return `${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}T00:00`;
+                  }
+                  return String(v).slice(0,16);
+                })()
+              : getLocalDateTimeString(24 * 7),
+          }))
+          .filter((r) => r.name && r.qty > 0);
+
+        if (parsed.length === 0) {
+          setUploadError('No valid rows found. Make sure columns contain item names and quantities.');
+          return;
+        }
+        setUploadParsed(parsed);
+      } catch (err) {
+        console.error(err);
+        setUploadError('Failed to parse file. Use .xlsx or .csv format.');
+      }
+    };
+    reader.readAsBinaryString(file);
+  };
+
+  const saveUploadRestock = async () => {
+    if (uploadParsed.length === 0) return;
+    setUploadSaving(true);
+    try {
+      let created = 0;
+      let updated = 0;
+
+      for (const row of uploadParsed) {
+        // Match to existing item by name (case-insensitive)
+        const existing = items.find(
+          (i) => i.name.toLowerCase() === row.name.toLowerCase()
+        );
+
+        const expiryIso = row.expiry ? new Date(row.expiry).toISOString() : null;
+
+        if (existing) {
+          // Update existing item
+          const payload: Record<string, unknown> = {
+            current_stock: existing.current_stock + row.qty,
+            total_stock: existing.total_stock + row.qty,
+            expires_at: expiryIso,
+          };
+          if (existing.transferred_to_raffle) {
+            payload.transferred_to_raffle = false;
+            payload.raffle_id = null;
+          }
+          await supabase.from('shop_items').update(payload).eq('id', existing.id);
+          updated++;
+        } else {
+          // Create new item
+          await supabase.from('shop_items').insert({
+            name: row.name,
+            current_stock: row.qty,
+            total_stock: row.qty,
+            price: 0, // Admin can edit price after import
+            expires_at: expiryIso,
+            created_by: currentUser?.member.username || 'System',
+          });
+          created++;
+        }
+      }
+
+      await loadItems();
+      showToast(
+        `Import complete — ${updated} updated, ${created} new item${created !== 1 ? 's' : ''} created`,
+        'success'
+      );
+      setUploadParsed([]);
+      setUploadFile(null);
+      setShowUploadPanel(false);
+      setShowMassRestock(false);
+      if (uploadInputRef.current) uploadInputRef.current.value = '';
+    } catch (err) {
+      console.error(err);
+      showToast('Import failed — check console for details', 'error');
+    } finally {
+      setUploadSaving(false);
     }
   };
 
@@ -648,14 +797,98 @@ export function ShopPage({ currentUser, onDkpChange }: Props) {
                 </div>
                 <div>
                   <h3 className="font-black text-base">Mass Restock</h3>
-                  <p className="text-xs text-gray-500">Edit current stock for any item, then save all changes at once</p>
+                  <p className="text-xs text-gray-500">Edit stock and expiry for any item, or import from Excel/CSV</p>
                 </div>
               </div>
-              <button onClick={() => setShowMassRestock(false)}
-                className="text-gray-600 hover:text-white transition-colors p-1.5">
-                <X size={20} />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setShowUploadPanel((v) => !v)}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold border transition-all ${
+                    showUploadPanel
+                      ? 'bg-[rgba(212,175,55,0.15)] border-[rgba(212,175,55,0.35)] text-[#D4AF37]'
+                      : 'bg-white/5 border-white/10 text-gray-400 hover:text-[#D4AF37] hover:border-[rgba(212,175,55,0.2)]'
+                  }`}
+                >
+                  <Plus size={13} /> Import Excel / CSV
+                </button>
+                <button onClick={() => { setShowMassRestock(false); setShowUploadPanel(false); setUploadParsed([]); setUploadFile(null); }}
+                  className="text-gray-600 hover:text-white transition-colors p-1.5">
+                  <X size={20} />
+                </button>
+              </div>
             </div>
+
+            {/* Upload panel */}
+            {showUploadPanel && (
+              <div className="border-b border-[rgba(212,175,55,0.1)] p-4 bg-[rgba(212,175,55,0.02)] shrink-0 space-y-3">
+                <div
+                  className="border-2 border-dashed border-[rgba(212,175,55,0.2)] rounded-xl p-5 text-center cursor-pointer hover:border-[rgba(212,175,55,0.4)] transition-colors"
+                  onClick={() => uploadInputRef.current?.click()}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    const f = e.dataTransfer.files[0];
+                    if (f) handleUploadFile(f);
+                  }}
+                >
+                  <input
+                    ref={uploadInputRef}
+                    type="file"
+                    accept=".xlsx,.xls,.csv"
+                    className="hidden"
+                    onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUploadFile(f); }}
+                  />
+                  <Plus size={20} className="mx-auto text-[rgba(212,175,55,0.4)] mb-2" />
+                  <p className="text-sm text-gray-400 font-medium">
+                    {uploadFile ? uploadFile.name : 'Drop Excel / CSV here or click to browse'}
+                  </p>
+                  <p className="text-xs text-gray-600 mt-1">
+                    Expects columns: Item Name, Quantity, (optional) Expiry Date
+                  </p>
+                </div>
+
+                {uploadError && (
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs">
+                    <AlertTriangle size={13} /> {uploadError}
+                  </div>
+                )}
+
+                {uploadParsed.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-bold text-[#D4AF37]">
+                        {uploadParsed.length} item{uploadParsed.length !== 1 ? 's' : ''} parsed — review before importing
+                      </p>
+                      <button onClick={saveUploadRestock} disabled={uploadSaving}
+                        className="btn-primary flex items-center gap-1.5 text-xs py-1.5 px-3 disabled:opacity-50">
+                        {uploadSaving ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />}
+                        Import Now
+                      </button>
+                    </div>
+                    <div className="max-h-40 overflow-y-auto space-y-1">
+                      {uploadParsed.map((row, i) => {
+                        const existingItem = items.find((it) => it.name.toLowerCase() === row.name.toLowerCase());
+                        return (
+                          <div key={i} className="grid grid-cols-[1fr_60px_1fr_80px] gap-2 items-center px-3 py-1.5 rounded-lg bg-black/40 border border-[rgba(212,175,55,0.08)] text-xs">
+                            <span className="font-medium text-gray-200 truncate">{row.name}</span>
+                            <span className="text-[#D4AF37] font-bold text-center">+{row.qty}</span>
+                            <span className="text-gray-500 truncate">
+                              {row.expiry ? new Date(row.expiry).toLocaleDateString() : 'No expiry'}
+                            </span>
+                            <span className={`text-center font-bold ${existingItem ? 'text-green-400' : 'text-cyan-400'}`}>
+                              {existingItem ? 'Update' : 'New'}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <p className="text-[11px] text-gray-600">
+                      "Update" adds quantity to existing items. "New" creates a new item with price 0 (edit after import).
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Table */}
             <div className="flex-1 overflow-y-auto p-5">
@@ -667,11 +900,11 @@ export function ShopPage({ currentUser, onDkpChange }: Props) {
               ) : (
                 <div className="space-y-2">
                   {/* Column headers */}
-                  <div className="hidden sm:grid grid-cols-[1fr_100px_100px_140px_110px] gap-3 px-3 pb-2 text-[10px] text-gray-600 uppercase tracking-wider font-bold">
+                  <div className="hidden sm:grid grid-cols-[1fr_80px_80px_160px_110px] gap-3 px-3 pb-2 text-[10px] text-gray-600 uppercase tracking-wider font-bold">
                     <span>Item</span>
                     <span className="text-center">Current</span>
                     <span className="text-center">Total</span>
-                    <span>Expiry</span>
+                    <span>Expiry Date</span>
                     <span className="text-center">Status</span>
                   </div>
 
@@ -681,13 +914,20 @@ export function ShopPage({ currentUser, onDkpChange }: Props) {
                     const isExpired = expiresAt !== null && now > expiresAt;
                     const inRaffle = item.transferred_to_raffle === true;
                     const currentVal = massRestockValues[item.id] ?? String(item.current_stock);
-                    const hasChanged = parseInt(currentVal) !== item.current_stock && !isNaN(parseInt(currentVal));
+                    const expiryVal = massRestockExpiry[item.id] ?? (item.expires_at ? new Date(item.expires_at).toISOString().slice(0, 16) : '');
+
+                    const origExpiry = item.expires_at
+                      ? new Date(item.expires_at).toISOString().slice(0, 16)
+                      : '';
+                    const stockChanged = !isNaN(parseInt(currentVal)) && parseInt(currentVal) !== item.current_stock;
+                    const expiryChanged = expiryVal !== origExpiry;
+                    const hasChanged = stockChanged || expiryChanged;
                     const willRestoreFromRaffle = inRaffle && parseInt(currentVal) > 0;
 
                     return (
                       <div
                         key={item.id}
-                        className={`grid grid-cols-2 sm:grid-cols-[1fr_100px_100px_140px_110px] gap-3 items-center px-3 py-2.5 rounded-xl border transition-colors ${
+                        className={`grid grid-cols-2 sm:grid-cols-[1fr_80px_80px_160px_110px] gap-2 items-center px-3 py-2.5 rounded-xl border transition-colors ${
                           hasChanged
                             ? 'bg-[rgba(212,175,55,0.06)] border-[rgba(212,175,55,0.3)]'
                             : 'bg-black/30 border-[rgba(212,175,55,0.08)]'
@@ -709,14 +949,14 @@ export function ShopPage({ currentUser, onDkpChange }: Props) {
 
                         {/* Current stock — editable */}
                         <div className="flex items-center justify-center gap-1">
-                          <span className="text-[10px] text-gray-600 sm:hidden">Current:</span>
+                          <span className="text-[10px] text-gray-600 sm:hidden">Qty:</span>
                           <input
                             type="number"
                             min="0"
                             value={currentVal}
                             onChange={(e) => setMassRestockValues((prev) => ({ ...prev, [item.id]: e.target.value }))}
                             className={`w-16 text-center bg-black border rounded-lg py-1.5 text-sm font-bold focus:outline-none ${
-                              hasChanged
+                              stockChanged
                                 ? 'border-[rgba(212,175,55,0.5)] text-[#D4AF37]'
                                 : 'border-[rgba(212,175,55,0.15)] text-gray-300'
                             }`}
@@ -729,19 +969,30 @@ export function ShopPage({ currentUser, onDkpChange }: Props) {
                           <span className="text-sm text-gray-500 font-medium tabular-nums">{item.total_stock}</span>
                         </div>
 
-                        {/* Expiry */}
-                        <div className="flex items-center gap-1.5 col-span-2 sm:col-span-1">
-                          {item.expires_at ? (
-                            <>
-                              <CalendarClock size={11} className={isExpired ? 'text-red-400' : 'text-gray-600'} />
-                              <span className={`text-xs ${isExpired ? 'text-red-400 font-bold' : 'text-gray-500'}`}>
-                                {new Date(item.expires_at).toLocaleDateString()}
-                                {' '}
-                                {new Date(item.expires_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                              </span>
-                            </>
-                          ) : (
-                            <span className="text-xs text-gray-700">Never expires</span>
+                        {/* Expiry — editable datetime */}
+                        <div className="col-span-2 sm:col-span-1">
+                          <div className="relative">
+                            <CalendarClock size={11} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-600 pointer-events-none" />
+                            <input
+                              type="datetime-local"
+                              value={expiryVal}
+                              onChange={(e) => setMassRestockExpiry((prev) => ({ ...prev, [item.id]: e.target.value }))}
+                              className={`w-full pl-6 pr-2 py-1.5 bg-black border rounded-lg text-xs focus:outline-none ${
+                                expiryChanged
+                                  ? 'border-[rgba(212,175,55,0.5)] text-[#D4AF37]'
+                                  : isExpired
+                                  ? 'border-red-500/30 text-red-400'
+                                  : 'border-[rgba(212,175,55,0.15)] text-gray-400'
+                              }`}
+                            />
+                          </div>
+                          {expiryVal && (
+                            <button
+                              onClick={() => setMassRestockExpiry((prev) => ({ ...prev, [item.id]: '' }))}
+                              className="text-[10px] text-gray-700 hover:text-red-400 transition-colors mt-0.5"
+                            >
+                              × Clear expiry
+                            </button>
                           )}
                         </div>
 
@@ -783,7 +1034,11 @@ export function ShopPage({ currentUser, onDkpChange }: Props) {
               <span className="text-xs text-gray-600">
                 {items.filter((item) => {
                   const v = massRestockValues[item.id];
-                  return v !== undefined && parseInt(v) !== item.current_stock && !isNaN(parseInt(v));
+                  const e = massRestockExpiry[item.id];
+                  const origE = item.expires_at ? new Date(item.expires_at).toISOString().slice(0, 16) : '';
+                  const stockChg = v !== undefined && parseInt(v) !== item.current_stock && !isNaN(parseInt(v));
+                  const expiryChg = e !== undefined && e !== origE;
+                  return stockChg || expiryChg;
                 }).length} item(s) changed
               </span>
               <div className="flex gap-3">
