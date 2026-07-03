@@ -1,6 +1,69 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { getShopItems, uploadShopImage, supabase, expireShopItems } from '@/lib/supabase';
-import * as XLSX from 'xlsx';
+
+// ─── Lightweight spreadsheet parser (no external deps) ───
+// Handles .csv files natively and .xlsx via SheetJS CDN loaded lazily
+async function parseSpreadsheet(file: File): Promise<{ headers: string[]; rows: Record<string, string>[] }> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    if (file.name.endsWith('.csv')) {
+      reader.onload = (e) => {
+        const text = e.target?.result as string;
+        const lines = text.split(/\r?\n/).filter((l) => l.trim());
+        if (lines.length < 2) { reject(new Error('CSV has no data rows')); return; }
+        const headers = lines[0].split(',').map((h) => h.replace(/^"|"$/g, '').trim());
+        const rows = lines.slice(1).map((line) => {
+          const vals = line.split(',').map((v) => v.replace(/^"|"$/g, '').trim());
+          const row: Record<string, string> = {};
+          headers.forEach((h, i) => { row[h] = vals[i] || ''; });
+          return row;
+        });
+        resolve({ headers, rows });
+      };
+      reader.onerror = () => reject(new Error('Failed to read CSV'));
+      reader.readAsText(file);
+    } else {
+      // Load SheetJS from CDN for xlsx support
+      reader.onload = async (e) => {
+        try {
+          if (!(window as any).XLSX) {
+            await new Promise<void>((res, rej) => {
+              const s = document.createElement('script');
+              s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+              s.onload = () => res();
+              s.onerror = () => rej(new Error('Failed to load xlsx library'));
+              document.head.appendChild(s);
+            });
+          }
+          const XLSX = (window as any).XLSX;
+          const wb = XLSX.read(e.target?.result, { type: 'binary' });
+          const ws = wb.Sheets[wb.SheetNames[0]];
+          const jsonRows: any[] = XLSX.utils.sheet_to_json(ws, { defval: '' });
+          if (jsonRows.length === 0) { reject(new Error('No data found')); return; }
+          const headers = Object.keys(jsonRows[0]);
+          const rows = jsonRows.map((r) => {
+            const out: Record<string, string> = {};
+            headers.forEach((h) => {
+              const v = r[h];
+              // Handle Excel date serial
+              if (typeof v === 'number' && h.match(/expir|date|until|end/i)) {
+                const XLSXLocal = (window as any).XLSX;
+                const d = XLSXLocal.SSF.parse_date_code(v);
+                out[h] = `${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}`;
+              } else {
+                out[h] = String(v ?? '');
+              }
+            });
+            return out;
+          });
+          resolve({ headers, rows });
+        } catch (err: any) { reject(err); }
+      };
+      reader.onerror = () => reject(new Error('Failed to read file'));
+      reader.readAsBinaryString(file);
+    }
+  });
+}
 import type { CurrentUser, ShopItem } from '@/types';
 import {
   ShoppingBag, Plus, Package, Search, Filter,
@@ -587,65 +650,45 @@ export function ShopPage({ currentUser, onDkpChange }: Props) {
   };
 
   // ─── UPLOAD RESTOCK (Excel / CSV) ───
-  const handleUploadFile = (file: File) => {
+  const handleUploadFile = async (file: File) => {
     setUploadFile(file);
     setUploadError(null);
     setUploadParsed([]);
 
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const data = e.target?.result;
-        const wb = XLSX.read(data, { type: 'binary' });
-        const ws = wb.Sheets[wb.SheetNames[0]];
-        const rows: any[] = XLSX.utils.sheet_to_json(ws, { defval: '' });
+    try {
+      const { rows } = await parseSpreadsheet(file);
+      if (rows.length === 0) { setUploadError('File is empty'); return; }
 
-        // Auto-detect columns: looks for any column containing "item" or "name"
-        // and any column containing "qty", "quantity", "stock"
-        if (rows.length === 0) { setUploadError('File is empty'); return; }
+      const keys = Object.keys(rows[0]);
+      const nameKey = keys.find((k) => /item|name/i.test(k)) || keys[0];
+      const qtyKey  = keys.find((k) => /qty|quantity|stock|count/i.test(k)) || keys[1];
+      const expiryKey = keys.find((k) => /expir|date|until|end/i.test(k));
 
-        const sampleRow = rows[0];
-        const keys = Object.keys(sampleRow);
+      const parsed = rows
+        .map((row) => ({
+          name:   row[nameKey]?.trim() || '',
+          qty:    parseInt(row[qtyKey] || '0') || 0,
+          expiry: expiryKey && row[expiryKey]
+            ? (() => {
+                const v = row[expiryKey].trim();
+                if (!v) return getLocalDateTimeString(24 * 7);
+                // Try parsing date string
+                const d = new Date(v);
+                if (!isNaN(d.getTime())) return d.toISOString().slice(0, 16);
+                return getLocalDateTimeString(24 * 7);
+              })()
+            : getLocalDateTimeString(24 * 7),
+        }))
+        .filter((r) => r.name && r.qty > 0);
 
-        const nameKey = keys.find((k) =>
-          /item|name/i.test(k)
-        ) || keys[0];
-        const qtyKey = keys.find((k) =>
-          /qty|quantity|stock|count/i.test(k)
-        ) || keys[1];
-        const expiryKey = keys.find((k) =>
-          /expir|date|until|end/i.test(k)
-        );
-
-        const parsed = rows
-          .map((row) => ({
-            name: String(row[nameKey] || '').trim(),
-            qty: parseInt(row[qtyKey]) || 0,
-            expiry: expiryKey && row[expiryKey]
-              ? (() => {
-                  // Handle Excel date serial numbers
-                  const v = row[expiryKey];
-                  if (typeof v === 'number') {
-                    const d = XLSX.SSF.parse_date_code(v);
-                    return `${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}T00:00`;
-                  }
-                  return String(v).slice(0,16);
-                })()
-              : getLocalDateTimeString(24 * 7),
-          }))
-          .filter((r) => r.name && r.qty > 0);
-
-        if (parsed.length === 0) {
-          setUploadError('No valid rows found. Make sure columns contain item names and quantities.');
-          return;
-        }
-        setUploadParsed(parsed);
-      } catch (err) {
-        console.error(err);
-        setUploadError('Failed to parse file. Use .xlsx or .csv format.');
+      if (parsed.length === 0) {
+        setUploadError('No valid rows found. Make sure columns contain item names and quantities.');
+        return;
       }
-    };
-    reader.readAsBinaryString(file);
+      setUploadParsed(parsed);
+    } catch (err: any) {
+      setUploadError(err?.message || 'Failed to parse file. Use .xlsx or .csv format.');
+    }
   };
 
   const saveUploadRestock = async () => {
