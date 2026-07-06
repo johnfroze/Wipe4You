@@ -560,13 +560,17 @@ export function ShopPage({ currentUser, onDkpChange }: Props) {
         .from('shop_items')
         .update({ current_stock: 0 })
         .in('id', activeIds);
-      if (error) throw error;
+
+      if (error) {
+        console.error('[zeroAllStock] Supabase error:', error.message, error.code);
+        throw new Error(error.message);
+      }
 
       await loadItems();
       showToast(`${activeIds.length} item${activeIds.length > 1 ? 's' : ''} set to 0 stock`, 'success');
-    } catch (err) {
-      console.error(err);
-      showToast('Failed to zero out stock', 'error');
+    } catch (err: any) {
+      console.error('[zeroAllStock]', err);
+      showToast(`Failed: ${err?.message || 'Unknown error — check console'}`, 'error');
     } finally {
       setZeroStockLoading(false);
       setConfirmZeroStock(false);
@@ -619,19 +623,28 @@ export function ShopPage({ currentUser, onDkpChange }: Props) {
         return;
       }
 
-      await Promise.all(
-        updates.map(({ item, newStock, newExpiry, stockChanged, expiryChanged }) => {
+      const results = await Promise.all(
+        updates.map(async ({ item, newStock, newExpiry, stockChanged, expiryChanged }) => {
           const payload: Record<string, unknown> = {};
           if (stockChanged) payload.current_stock = newStock;
           if (expiryChanged) payload.expires_at = newExpiry;
-          // Restocking a raffle item returns it to shop
           if (item.transferred_to_raffle && stockChanged && newStock > 0) {
             payload.transferred_to_raffle = false;
             payload.raffle_id = null;
           }
-          return supabase.from('shop_items').update(payload).eq('id', item.id);
+          const { error } = await supabase.from('shop_items').update(payload).eq('id', item.id);
+          if (error) {
+            console.error(`[saveMassRestock] item ${item.id} (${item.name}):`, error.message, error.code);
+            return error;
+          }
+          return null;
         })
       );
+
+      const errors = results.filter(Boolean);
+      if (errors.length > 0) {
+        throw new Error(`${errors.length} item(s) failed to save — check console for details`);
+      }
 
       await loadItems();
       const restoredCount = updates.filter((u) => u.item.transferred_to_raffle && u.stockChanged && u.newStock > 0).length;
