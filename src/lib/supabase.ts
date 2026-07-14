@@ -193,6 +193,7 @@ export async function createAuction(
       end_time: auction.end_time || 0,
       ended: false,
       history: [],
+      allowed_bidders: auction.allowed_bidders?.length ? auction.allowed_bidders : null,
       required_event_name: auction.required_event_name || null,
     });
 
@@ -409,11 +410,10 @@ export async function getShopTransactions(): Promise<
   const { data, error } = await supabase
     .from('shop_transactions')
     .select(
-      '*, buyer:members(*), item:shop_items(*)'
+      'id, buyer_id, item_id, quantity, total_price, purchase_timestamp, distribution_status, distributed_by, distributed_at, buyer:members(id, username, avatar, discord_id), item:shop_items(id, name, image_url, price)'
     )
-    .order('purchase_timestamp', {
-      ascending: false,
-    });
+    .order('purchase_timestamp', { ascending: false })
+    .limit(500); // cap at 500 rows to limit egress
 
   if (error) throw error;
 
@@ -425,11 +425,10 @@ export async function getMyTransactions(
 ): Promise<ShopTransaction[]> {
   const { data, error } = await supabase
     .from('shop_transactions')
-    .select('*, item:shop_items(*)')
+    .select('id, buyer_id, item_id, quantity, total_price, purchase_timestamp, distribution_status, distributed_by, distributed_at, item:shop_items(id, name, image_url, price)')
     .eq('buyer_id', buyerId)
-    .order('purchase_timestamp', {
-      ascending: false,
-    });
+    .order('purchase_timestamp', { ascending: false })
+    .limit(200);
 
   if (error) throw error;
 
@@ -565,8 +564,9 @@ export function subscribeMembersRealtime(onUpdate: () => void): () => void {
 export async function getDkpLogs(memberId?: string): Promise<DkpLog[]> {
   let query = supabase
     .from('dkp_log')
-    .select('*')
-    .order('created_at', { ascending: false });
+    .select('id, member_id, member_name, amount, reason, admin_name, dkp_before, dkp_after, created_at')
+    .order('created_at', { ascending: false })
+    .limit(1000);
   if (memberId) query = query.eq('member_id', memberId);
   const { data, error } = await query;
   if (error) throw error;
@@ -590,7 +590,7 @@ export async function clearDkpLogs() {
 export async function getAnnouncements(): Promise<Announcement[]> {
   const { data, error } = await supabase
     .from('announcements')
-    .select('*')
+    .select('id, title, body, author_name, pinned, created_at')
     .order('pinned', { ascending: false })
     .order('created_at', { ascending: false });
   if (error) throw error;
@@ -652,7 +652,7 @@ export async function getMemberProfile(memberId: string) {
 export async function getRaffles(): Promise<Raffle[]> {
   const { data, error } = await supabase
     .from('raffles')
-    .select('*')
+    .select('id, title, description, ticket_price, max_tickets, tickets_sold, winner_count, status, draw_at, required_event_name, created_by, created_at, completed_at')
     .order('created_at', { ascending: false });
   if (error) throw error;
   return data || [];
@@ -710,7 +710,7 @@ export async function cancelRaffleWithRefund(raffleId: number): Promise<number> 
 export async function getRafflePrizes(raffleId: number): Promise<RafflePrize[]> {
   const { data, error } = await supabase
     .from('raffle_prizes')
-    .select('*')
+    .select('id, raffle_id, item_id, item_name, item_image, winner_id, winner_name')
     .eq('raffle_id', raffleId)
     .order('id');
   if (error) throw error;
@@ -735,7 +735,7 @@ export async function removeRafflePrize(prizeId: number): Promise<void> {
 export async function getRaffleEntries(raffleId: number): Promise<RaffleEntry[]> {
   const { data, error } = await supabase
     .from('raffle_entries')
-    .select('*')
+    .select('id, raffle_id, member_id, member_name, tickets, total_cost, entered_at')
     .eq('raffle_id', raffleId)
     .order('entered_at', { ascending: false });
   if (error) throw error;
