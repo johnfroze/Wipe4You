@@ -165,7 +165,7 @@ export function RafflePage({ currentUser, onDkpChange }: Props) {
   const loadAll = useCallback(async () => {
     setLoading(true);
     try {
-      await expireShopItems();
+      // expireShopItems() runs in App.tsx — skip here to save bandwidth
       const [raffleData, queueData, eventData] = await Promise.all([
         getRaffles(),
         getExpiredQueuedItems(),

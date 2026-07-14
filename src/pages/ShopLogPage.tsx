@@ -127,7 +127,13 @@ export function ShopLogPage() {
 
     const channel = supabase
       .channel('shop-log-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'shop_transactions' }, () => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'shop_transactions' }, () => {
+        loadTransactions();
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'shop_transactions' }, () => {
+        loadTransactions();
+      })
+      .subscribe();
         loadTransactions();
       })
       .subscribe();

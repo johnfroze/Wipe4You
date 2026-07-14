@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { getShopItems, uploadShopImage, supabase, expireShopItems } from '@/lib/supabase';
+import { getShopItems, uploadShopImage, supabase } from '@/lib/supabase';
 
 // ─── Lightweight spreadsheet parser (no external deps) ───
 // Handles .csv files natively and .xlsx via SheetJS CDN loaded lazily
@@ -325,14 +325,7 @@ export function ShopPage({ currentUser, onDkpChange }: Props) {
   }, []);
 
   useEffect(() => {
-    // Run expiry check first — transfers any expired items to raffles,
-    // then load the shop so transferred items are already marked
-    expireShopItems().then((count) => {
-      if (count > 0) {
-        showToast(`${count} expired item${count > 1 ? 's' : ''} moved to Raffle`, 'success');
-      }
-    });
-
+    // expireShopItems() is handled by App.tsx globally — skip here
     Promise.all([loadItems(), loadShopSettings()]).finally(() => setLoading(false));
 
     const itemsChannel = supabase
