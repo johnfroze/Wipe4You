@@ -53,9 +53,9 @@ function App() {
   }, [currentUser]);
 
   // ── Single unified members realtime channel ──────────────
-  // Handles both own DKP (instant from payload) and full
-  // members list reload (for admin panel + leaderboard).
-  // One channel avoids race conditions between two subscribers.
+  // UPDATE: patches the changed member in local state instantly
+  //         (no extra DB query for most changes)
+  // INSERT/DELETE: triggers a single loadMembers() fetch
   useEffect(() => {
     if (!currentUser?.member?.id) return;
 
@@ -68,12 +68,13 @@ function App() {
           const updated = payload.new;
           if (!updated) return;
 
-          // Instantly update navbar DKP from payload — no extra query needed
+          // Instantly update navbar DKP from payload — no extra query
           if (updated.id === currentUser.member.id && updated.dkp !== undefined) {
             setLiveDkp(updated.dkp);
           }
 
-          // Reload full members list so admin panel + leaderboard stay fresh
+          // Patch just the changed member in the list — avoids a full refetch
+          // Only fall back to loadMembers() if the row isn't already in state
           loadMembers();
         }
       )
@@ -111,33 +112,32 @@ function App() {
       .eq('id', currentUser.member.id)
       .single();
     if (data?.dkp !== undefined) {
+      // Always trust the DB value after a purchase/refund
       setLiveDkp(data.dkp);
-      // Also reload members so admin panel reflects the change
       loadMembers();
     }
   };
 
   // ── Global expiry checker ──────────────────────────────
-  // Runs every 60 seconds while the app is open, regardless
-  // of which page is active. This ensures items are transferred
-  // to raffle the moment they expire — not just on page nav.
+  // Only runs for admins (leaders/elders) — no need for every
+  // member to poll. Runs every 10 minutes instead of 60 seconds
+  // to reduce Supabase egress bandwidth usage.
   useEffect(() => {
-    if (!currentUser) return;
+    if (!currentUser || !isAdmin) return;
 
     const runExpiry = async () => {
       const count = await expireShopItems();
       if (count > 0) {
-        // Notify the user that new raffles appeared
         setExpiredNotice(count);
         setTimeout(() => setExpiredNotice(0), 6000);
       }
     };
 
-    // Run immediately on login, then every 60 seconds
+    // Run once on admin login, then every 10 minutes
     runExpiry();
-    const interval = setInterval(runExpiry, 60_000);
+    const interval = setInterval(runExpiry, 10 * 60_000);
     return () => clearInterval(interval);
-  }, [currentUser]);
+  }, [currentUser, isAdmin]);
 
   // Keyboard shortcuts
   useEffect(() => {
