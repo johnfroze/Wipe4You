@@ -134,9 +134,6 @@ export function ShopLogPage() {
         loadTransactions();
       })
       .subscribe();
-        loadTransactions();
-      })
-      .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
