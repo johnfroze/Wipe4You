@@ -280,13 +280,18 @@ export function useMembers() {
   const [loading, setLoading] = useState(false);
   const loaded = useRef(false);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastFetchTime = useRef<number>(0);
+  const CACHE_MS = 3000; // skip refetch if data is <3s old
 
   const loadMembers = useCallback(async () => {
+    const now = Date.now();
+    if (now - lastFetchTime.current < CACHE_MS) return;
+    lastFetchTime.current = now;
     setLoading(true);
     try {
       const { data, error } = await supabase
         .from('members')
-        .select('*')
+        .select('id, discord_id, username, avatar, role, dkp, attendance, created_at')
         .order('dkp', { ascending: false });
       if (error) throw error;
       setMembers(data || []);
@@ -297,13 +302,13 @@ export function useMembers() {
     }
   }, []);
 
-  // Debounced version — collapses rapid-fire realtime events
-  // (e.g. 10 members updated at once) into a single fetch 150ms later
+  // Debounced + forces cache bypass so realtime events always refresh
   const loadMembersDebounced = useCallback(() => {
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
     debounceTimer.current = setTimeout(() => {
+      lastFetchTime.current = 0; // bypass cache for explicit reloads
       loadMembers();
-    }, 150);
+    }, 200);
   }, [loadMembers]);
 
   useEffect(() => {
