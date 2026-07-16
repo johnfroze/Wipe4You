@@ -178,7 +178,7 @@ export async function getAuctions(): Promise<
 }
 
 export async function createAuction(
-  auction: Partial<Auction>
+  auction: Partial<Auction> & { allowed_bidders?: string[] | null; required_event_name?: string | null }
 ) {
   const { error } = await supabase
     .from('auctions')
@@ -417,7 +417,7 @@ export async function getShopTransactions(): Promise<
 
   if (error) throw error;
 
-  return data || [];
+  return (data || []) as unknown as ShopTransaction[];
 }
 
 export async function getMyTransactions(
@@ -431,8 +431,7 @@ export async function getMyTransactions(
     .limit(200);
 
   if (error) throw error;
-
-  return data || [];
+  return (data || []) as unknown as ShopTransaction[];
 }
 
 export async function createTransaction(
