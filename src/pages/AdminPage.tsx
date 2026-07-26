@@ -1,12 +1,12 @@
 import { useState, useCallback, useEffect } from 'react';
-import { updateMemberDkp, updateMemberRole, updateMemberUsername, deleteMember, createDkpLog, getDefaultRaffleTicketPrice, setDefaultRaffleTicketPrice } from '@/lib/supabase';
+import { updateMemberDkp, updateMemberRole, updateMemberUsername, deleteMember, createDkpLog, getDefaultRaffleTicketPrice, setDefaultRaffleTicketPrice, supabase } from '@/lib/supabase';
 import type { Member, CurrentUser } from '@/types';
 import { MemberProfileModal } from './MemberProfileModal';
 import {
   Shield, Crown, Star, User, Plus, Minus,
   Edit3, Trash2, Search, CheckCircle2,
   AlertTriangle, X, Loader2, Check, ExternalLink,
-  Ticket, Settings,
+  Ticket, Settings, RotateCcw,
 } from 'lucide-react';
 
 interface Props {
@@ -71,6 +71,8 @@ export function AdminPage({ members, onMembersChange, currentUser }: Props) {
   const [confirmDelete, setConfirmDelete] = useState<Member | null>(null);
   const [profileMember, setProfileMember] = useState<Member | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [confirmResetDkp, setConfirmResetDkp] = useState(false);
+  const [resetDkpLoading, setResetDkpLoading] = useState(false);
 
   const adminName = currentUser?.member.username || 'Admin';
 
@@ -92,6 +94,42 @@ export function AdminPage({ members, onMembersChange, currentUser }: Props) {
       showToast(`Default raffle ticket price set to ${price} DKP`, 'success');
     } catch { showToast('Failed to save', 'error'); }
     finally { setSavingRafflePrice(false); }
+  };
+
+  const handleResetAllDkp = async () => {
+    setResetDkpLoading(true);
+    try {
+      const { error } = await supabase
+        .from('members')
+        .update({ dkp: 0 })
+        .neq('id', '00000000-0000-0000-0000-000000000000'); // update all rows
+
+      if (error) throw error;
+
+      // Log the reset for every member
+      const logEntries = members.map((m) => ({
+        member_id: m.id,
+        member_name: m.username,
+        amount: -m.dkp,
+        reason: 'Admin: Season DKP Reset',
+        admin_name: adminName,
+        dkp_before: m.dkp,
+        dkp_after: 0,
+      })).filter((e) => e.amount !== 0); // skip members already at 0
+
+      if (logEntries.length > 0) {
+        await supabase.from('dkp_log').insert(logEntries);
+      }
+
+      await onMembersChange();
+      showToast(`All ${members.length} members reset to 0 DKP`, 'success');
+    } catch (err: any) {
+      console.error('[resetAllDkp]', err);
+      showToast(`Failed: ${err?.message || 'Unknown error'}`, 'error');
+    } finally {
+      setResetDkpLoading(false);
+      setConfirmResetDkp(false);
+    }
   };
 
   const showToast = useCallback((message: string, type: 'success' | 'error') => {
@@ -210,6 +248,16 @@ export function AdminPage({ members, onMembersChange, currentUser }: Props) {
       {profileMember && (
         <MemberProfileModal member={profileMember} onClose={() => setProfileMember(null)} />
       )}
+      {confirmResetDkp && (
+        <ConfirmModal
+          title="Reset ALL DKP to Zero?"
+          message={`This sets every member's DKP to 0 (${members.length} members affected). Each reset is logged in the DKP Log for full transparency. This cannot be undone.`}
+          confirmLabel="Reset All DKP"
+          onConfirm={handleResetAllDkp}
+          onCancel={() => setConfirmResetDkp(false)}
+          loading={resetDkpLoading}
+        />
+      )}
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -271,6 +319,28 @@ export function AdminPage({ members, onMembersChange, currentUser }: Props) {
               </button>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* ── Danger Zone ── */}
+      <div className="card p-5 border-red-500/15">
+        <h2 className="font-bold text-sm text-red-400/80 uppercase tracking-wider flex items-center gap-2 mb-4">
+          <AlertTriangle size={14} className="text-red-400" /> Danger Zone
+        </h2>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-xl bg-red-500/5 border border-red-500/15">
+          <div>
+            <div className="text-sm font-bold text-gray-200">Reset All DKP</div>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Sets every member's DKP to 0. Useful for starting a new season. Each reset is logged individually in the DKP Log.
+            </p>
+          </div>
+          <button
+            onClick={() => setConfirmResetDkp(true)}
+            className="shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-xl bg-red-500/15 text-red-400 border border-red-500/25 hover:bg-red-500/25 text-sm font-bold transition-all"
+          >
+            <RotateCcw size={14} />
+            Reset All DKP
+          </button>
         </div>
       </div>
 
