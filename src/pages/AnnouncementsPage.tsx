@@ -6,7 +6,7 @@ import {
 import type { Announcement, CurrentUser } from '@/types';
 import {
   Megaphone, Pin, Plus, Trash2, Edit3,
-  X, CheckCircle2, AlertTriangle, Loader2, Check,
+  X, CheckCircle2, AlertTriangle, Loader2, Check, Heart,
 } from 'lucide-react';
 
 interface Props {
@@ -23,6 +23,20 @@ function Toast({ message, type, onClose }: { message: string; type: 'success' | 
     </div>
   );
 }
+
+// Guild members streaming Legend of Ymir — support links via WEMIX
+const streamers = [
+  {
+    name: 'HOFjfroze',
+    game: 'Legend of YMIR',
+    link: 'https://sss.wemixplay.com/en/lygl/board/9912',
+  },
+  {
+    name: 'JKGaming',
+    game: 'Legend of YMIR',
+    link: 'https://sss.wemixplay.com/en/lygl/board/9952',
+  },
+];
 
 export function AnnouncementsPage({ currentUser }: Props) {
   const isAdmin = currentUser?.member.role === 'leader' || currentUser?.member.role === 'elder';
@@ -142,6 +156,46 @@ export function AnnouncementsPage({ currentUser }: Props) {
             <Plus size={15} /> Post Announcement
           </button>
         )}
+      </div>
+
+      {/* Support Our Streamers */}
+      <div className="card p-5">
+        <div className="flex items-center gap-2.5 mb-4">
+          <div className="w-7 h-7 rounded-lg bg-[rgba(212,175,55,0.08)] border border-[rgba(212,175,55,0.2)] flex items-center justify-center">
+            <Heart size={14} className="text-[#D4AF37]" />
+          </div>
+          <div>
+            <h2 className="font-black text-sm">Support Our Streamers</h2>
+            <p className="text-xs text-gray-500">Guild members streaming Legend of Ymir — show them love</p>
+          </div>
+        </div>
+
+        <div className="grid sm:grid-cols-2 gap-3">
+          {streamers.map((s) => (
+            <div
+              key={s.name}
+              className="flex items-center justify-between gap-3 px-4 py-3 rounded-full bg-[rgba(212,175,55,0.05)] border border-[rgba(212,175,55,0.15)] hover:border-[rgba(212,175,55,0.35)] hover:bg-[rgba(212,175,55,0.08)] transition-all"
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-full bg-black/60 border border-[rgba(212,175,55,0.3)] flex items-center justify-center text-sm shrink-0">
+                  ⚔️
+                </div>
+                <div className="min-w-0">
+                  <div className="text-sm font-bold text-gray-200 truncate">{s.name}</div>
+                  <div className="text-[11px] text-[rgba(212,175,55,0.6)]">{s.game}</div>
+                </div>
+              </div>
+              <a
+                href={s.link}
+                target="_blank"
+                rel="noreferrer"
+                className="shrink-0 px-4 py-1.5 rounded-full border border-[rgba(212,175,55,0.4)] text-[#D4AF37] text-[11px] font-bold uppercase tracking-wider hover:bg-gradient-to-br hover:from-[#D4AF37] hover:to-[#A87820] hover:text-[#0a0810] hover:border-transparent transition-all"
+              >
+                Support
+              </a>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Create / Edit form */}
