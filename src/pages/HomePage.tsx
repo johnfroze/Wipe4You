@@ -80,6 +80,20 @@ export default function HomePage({ onLogin }: Props) {
     { value: '3,241', label: 'PvP Victories', icon: '💀' },
   ];
 
+  const streamers = [
+    {
+      name: 'HOFjfroze',
+      game: 'Legend of YMIR',
+      link: 'https://sss.wemixplay.com/en/lygl/board/9912',
+    },
+    {
+      name: 'JKGaming',
+      game: 'Legend of YMIR',
+      link: 'https://sss.wemixplay.com/en/lygl/board/9952',
+    },
+  ];
+
+
   const announcements = [
     {
       tag: 'Recruitment',
@@ -545,6 +559,118 @@ export default function HomePage({ onLogin }: Props) {
                   fontSize: 14, lineHeight: 1.7,
                   color: 'rgba(200,190,170,0.55)',
                 }}>{a.body}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── SUPPORT OUR STREAMERS ── */}
+      <section style={{
+        padding: '100px 48px',
+        background: 'linear-gradient(180deg, #050508 0%, #080612 50%, #050508 100%)',
+        position: 'relative',
+      }}>
+        <div style={{
+          position: 'absolute', top: 0, left: 0, right: 0, height: 1,
+          background: 'linear-gradient(90deg, transparent, rgba(212,175,55,0.2), transparent)',
+        }} />
+
+        <div style={{ maxWidth: 900, margin: '0 auto' }}>
+          <div style={{ textAlign: 'center', marginBottom: 56 }}>
+            <div style={{
+              fontSize: 10, letterSpacing: '0.5em',
+              color: 'rgba(212,175,55,0.5)', textTransform: 'uppercase', marginBottom: 12,
+            }}>Represent W4U</div>
+            <h2 style={{
+              fontSize: 'clamp(28px, 4vw, 42px)',
+              fontWeight: 800, letterSpacing: '-1px',
+              background: 'linear-gradient(135deg, #FFFFFF, #C8B060)',
+              WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+              marginBottom: 16,
+            }}>Support Our Streamers</h2>
+            <p style={{
+              fontSize: 15, color: 'rgba(200,190,170,0.55)',
+              maxWidth: 480, margin: '0 auto', lineHeight: 1.7,
+            }}>
+              Our guild members streaming Legend of Ymir. Show them love and help grow the W4U name.
+            </p>
+            <div style={{
+              width: 60, height: 1,
+              background: 'linear-gradient(90deg, transparent, #D4AF37, transparent)',
+              margin: '24px auto 0',
+            }} />
+          </div>
+
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+            gap: 20,
+          }}>
+            {streamers.map((s, i) => (
+              <div key={i} style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                gap: 16, flexWrap: 'wrap',
+                padding: '20px 28px',
+                background: 'linear-gradient(135deg, rgba(212,175,55,0.1), rgba(168,120,32,0.04))',
+                border: '1px solid rgba(212,175,55,0.2)',
+                borderRadius: 999,
+                transition: 'all 0.3s',
+              }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLDivElement).style.borderColor = 'rgba(212,175,55,0.45)';
+                  (e.currentTarget as HTMLDivElement).style.background = 'linear-gradient(135deg, rgba(212,175,55,0.16), rgba(168,120,32,0.06))';
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLDivElement).style.borderColor = 'rgba(212,175,55,0.2)';
+                  (e.currentTarget as HTMLDivElement).style.background = 'linear-gradient(135deg, rgba(212,175,55,0.1), rgba(168,120,32,0.04))';
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+                  <div style={{
+                    width: 36, height: 36, borderRadius: '50%',
+                    background: 'rgba(10,8,16,0.9)',
+                    border: '1.5px solid rgba(212,175,55,0.4)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 15, flexShrink: 0,
+                  }}>⚔️</div>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{
+                      fontSize: 15, fontWeight: 800, color: '#e2e8f0',
+                      whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                    }}>{s.name}</div>
+                    <div style={{
+                      fontSize: 11, color: 'rgba(212,175,55,0.6)',
+                      letterSpacing: '0.05em',
+                    }}>{s.game}</div>
+                  </div>
+                </div>
+
+                <a
+                  href={s.link}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{
+                    flexShrink: 0,
+                    padding: '10px 28px',
+                    borderRadius: 999,
+                    border: '1px solid rgba(212,175,55,0.5)',
+                    color: '#D4AF37',
+                    fontSize: 12, fontWeight: 800,
+                    letterSpacing: '0.1em', textTransform: 'uppercase',
+                    textDecoration: 'none',
+                    background: 'transparent',
+                    transition: 'all 0.2s',
+                  }}
+                  onMouseEnter={(e) => {
+                    (e.currentTarget as HTMLAnchorElement).style.background = 'linear-gradient(135deg, #D4AF37, #A87820)';
+                    (e.currentTarget as HTMLAnchorElement).style.color = '#0a0810';
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.currentTarget as HTMLAnchorElement).style.background = 'transparent';
+                    (e.currentTarget as HTMLAnchorElement).style.color = '#D4AF37';
+                  }}
+                >Support</a>
               </div>
             ))}
           </div>
